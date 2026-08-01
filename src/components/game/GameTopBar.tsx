@@ -1,3 +1,4 @@
+import { sfx } from "../../lib/sfx";
 import { Chip } from "./Chip";
 
 type Props = {
@@ -23,6 +24,7 @@ export function GameTopBar({ level, chips, onQuit }: Props) {
 					aria-label="Quit game"
 					onClick={(e) => {
 						e.currentTarget.blur();
+						sfx.quit();
 						onQuit();
 					}}
 					className="absolute top-16 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card/85 text-sm text-muted backdrop-blur-md"

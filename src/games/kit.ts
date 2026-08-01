@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** games get their sound palette from the kit — see lib/sfx for the full list */
+export { sfx } from "../lib/sfx";
+
 /** Static metadata every game module exports as `meta`. */
 export type GameMeta = {
 	title: string;

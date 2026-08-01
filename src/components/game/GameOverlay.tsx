@@ -1,4 +1,5 @@
 import type { GameResult } from "../../games/kit";
+import { sfx } from "../../lib/sfx";
 
 type Props = {
 	emoji: string;
@@ -51,6 +52,7 @@ export function GameOverlay({
 				type="button"
 				onClick={(e) => {
 					e.currentTarget.blur();
+					sfx.start();
 					onPlay();
 				}}
 				className="mt-2 rounded-full px-10 py-3.5 text-base font-extrabold text-white shadow-[0_8px_30px_rgba(124,92,255,0.4)]"

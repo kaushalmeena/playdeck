@@ -7,6 +7,7 @@ import {
 } from "react";
 import { extentCount, rebase, startIndex } from "../lib/feed/loop";
 import { WheelPager } from "../lib/feed/wheel";
+import { sfx } from "../lib/sfx";
 
 type Options = {
 	/** number of cards in the visible list */
@@ -120,6 +121,7 @@ export function useInfiniteFeed({
 		const el = scrollerRef.current;
 		if (!el || !el.clientHeight) return;
 		const target = Math.round(el.scrollTop / el.clientHeight) + dir;
+		sfx.swipe(dir);
 		el.scrollTo({ top: target * el.clientHeight, behavior: "smooth" });
 	}, []);
 

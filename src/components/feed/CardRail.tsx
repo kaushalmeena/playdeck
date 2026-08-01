@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { GameEntry } from "../../games/registry";
+import { sfx } from "../../lib/sfx";
 
 type Props = {
 	game: GameEntry;
@@ -23,6 +24,7 @@ export function CardRail({
 				type="button"
 				onClick={(e) => {
 					e.currentTarget.blur();
+					sfx.toggle(!isFavorite);
 					onToggleFavorite();
 				}}
 				aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
