@@ -140,6 +140,11 @@ export default function EchoPads({
 				`${Math.max(seqLen - 1, 0) * 15} PTS`,
 			]}
 			onPlay={start}
+			onQuit={() => {
+				clearTimers();
+				setLit(-1);
+				cancel();
+			}}
 			onPlayingChange={onPlayingChange}
 		>
 			<div className="flex h-full w-full flex-col items-center justify-center gap-5">

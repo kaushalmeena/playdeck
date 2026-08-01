@@ -133,7 +133,7 @@ export function GameFeed({ games }: { games: Array<GameEntry> }) {
 			<header className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between bg-gradient-to-b from-bg/95 via-bg/60 to-transparent px-4 pt-3 pb-8">
 				<div className="text-base font-black tracking-widest">
 					🎮{" "}
-					<span className="bg-gradient-to-r from-accent to-accent2 bg-clip-text text-transparent">
+					<span className="bg-linear-to-r from-accent to-accent2 bg-clip-text text-transparent">
 						GAMESHORTS
 					</span>
 				</div>
@@ -145,7 +145,7 @@ export function GameFeed({ games }: { games: Array<GameEntry> }) {
 							onClick={() => switchTab(t)}
 							className={`cursor-pointer rounded-full px-3 py-1 text-xs font-bold tracking-wide transition-colors ${
 								tab === t
-									? "bg-gradient-to-r from-accent to-accent2 text-white"
+									? "bg-linear-to-r from-accent to-accent2 text-white"
 									: "text-muted"
 							}`}
 						>

@@ -98,28 +98,6 @@ button:not(:disabled):active {
 	display: none;
 }
 
-/* confetti burst on level-up */
-@keyframes confetti-fall {
-	0% {
-		transform: translate3d(0, -8vh, 0) rotate(0deg);
-		opacity: 1;
-	}
-	100% {
-		transform: translate3d(var(--cx), 105vh, 0) rotate(var(--cr));
-		opacity: 0.85;
-	}
-}
-.confetti-piece {
-	position: absolute;
-	top: 0;
-	left: 50%;
-	width: 8px;
-	height: 13px;
-	border-radius: 2px;
-	pointer-events: none;
-	animation: confetti-fall var(--cd) ease-in var(--cdel) forwards;
-}
-
 /* bubble pop game */
 @keyframes bubble-rise {
 	from {

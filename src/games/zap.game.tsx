@@ -124,6 +124,7 @@ export default function ZapBot({
 			playing={playing}
 			result={result}
 			chips={[`🎯 ${hits}/${goal}`, `${Math.ceil(timeLeft)}s`]}
+			onQuit={cancel}
 			onPlay={start}
 			onPlayingChange={onPlayingChange}
 		>

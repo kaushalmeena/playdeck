@@ -184,6 +184,7 @@ export default function GlowFlap({
 			playing={playing}
 			result={result}
 			chips={[`🚪 ${passed}/${goal}`, `${passed * 10} PTS`]}
+			onQuit={cancel}
 			onPlay={start}
 			onPlayingChange={onPlayingChange}
 		>

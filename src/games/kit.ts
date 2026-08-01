@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Static metadata every game module exports as `meta`. */
 export type GameMeta = {
@@ -55,3 +55,49 @@ export function useRun(onEnd: GameProps["onEnd"]) {
 
 	return { playing, result, begin, finish, cancel };
 }
+
+/** setTimeout collection that self-cleans on unmount. */
+export function useTimers() {
+	const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+	const after = useCallback((ms: number, fn: () => void) => {
+		const id = setTimeout(fn, ms);
+		timers.current.push(id);
+		return id;
+	}, []);
+	const clearAll = useCallback(() => {
+		for (const t of timers.current) clearTimeout(t);
+		timers.current = [];
+	}, []);
+	useEffect(() => clearAll, [clearAll]);
+	return { after, clearAll };
+}
+
+/**
+ * Countdown that (re)starts every time `playing` flips true.
+ * Watch for `timeLeft === 0` in an effect to end the run.
+ */
+export function useCountdown(playing: boolean, total: number): number {
+	const [timeLeft, setTimeLeft] = useState(total);
+	useEffect(() => {
+		if (!playing) return;
+		setTimeLeft(total);
+		const started = performance.now();
+		const t = setInterval(() => {
+			setTimeLeft(Math.max(total - (performance.now() - started) / 1000, 0));
+		}, 100);
+		return () => clearInterval(t);
+	}, [playing, total]);
+	return timeLeft;
+}
+
+export const randInt = (min: number, max: number): number =>
+	min + Math.floor(Math.random() * (max - min + 1));
+
+export const shuffle = <T>(arr: ReadonlyArray<T>): Array<T> =>
+	arr
+		.map((v) => [Math.random(), v] as const)
+		.sort((a, b) => a[0] - b[0])
+		.map(([, v]) => v);
+
+export const pick = <T>(arr: ReadonlyArray<T>): T =>
+	arr[Math.floor(Math.random() * arr.length)];

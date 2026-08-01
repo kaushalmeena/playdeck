@@ -12,7 +12,11 @@ type Props = {
 	result: GameResult;
 	/** extra topbar chips while playing, e.g. ["🍏 2/5", "20 PTS"] */
 	chips?: Array<string>;
+	/** 0..1 — renders the standard timer bar at the top while playing */
+	progress?: number;
 	onPlay: () => void;
+	/** abort the current run (the ✕ button while playing) */
+	onQuit?: () => void;
 	onPlayingChange?: (playing: boolean) => void;
 	children: ReactNode;
 };
@@ -26,8 +30,9 @@ export function Chip({ children }: { children: ReactNode }) {
 }
 
 /**
- * Shared shell around every game: background, in-run topbar and the
- * start / result overlay. Keeps all games looking like one product.
+ * Shared shell around every game: background, in-run topbar, quit button,
+ * progress bar and the start / result overlay. Keeps all games looking
+ * like one product.
  */
 export function GameChrome({
 	emoji,
@@ -38,7 +43,9 @@ export function GameChrome({
 	playing,
 	result,
 	chips,
+	progress,
 	onPlay,
+	onQuit,
 	onPlayingChange,
 	children,
 }: Props) {
@@ -58,6 +65,16 @@ export function GameChrome({
 		>
 			{children}
 
+			{playing && progress !== undefined && (
+				<div
+					className="absolute top-0 left-0 z-10 h-1 w-full origin-left transition-transform duration-100"
+					style={{
+						transform: `scaleX(${Math.min(Math.max(progress, 0), 1)})`,
+						backgroundImage: `linear-gradient(90deg, ${accent}, #00e5ff)`,
+					}}
+				/>
+			)}
+
 			{playing && (
 				<div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center gap-2">
 					<Chip>LV {level}</Chip>
@@ -65,6 +82,20 @@ export function GameChrome({
 						<Chip key={c}>{c}</Chip>
 					))}
 				</div>
+			)}
+
+			{playing && onQuit && (
+				<button
+					type="button"
+					aria-label="Quit game"
+					onClick={(e) => {
+						e.currentTarget.blur();
+						onQuit();
+					}}
+					className="absolute top-16 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card/85 text-sm text-muted backdrop-blur-md"
+				>
+					✕
+				</button>
 			)}
 
 			{!playing && (
@@ -93,8 +124,11 @@ export function GameChrome({
 					</p>
 					<button
 						type="button"
-						onClick={onPlay}
-						className="mt-2 cursor-pointer rounded-full px-10 py-3.5 text-base font-extrabold text-white shadow-[0_8px_30px_rgba(124,92,255,0.4)] transition-transform active:scale-95"
+						onClick={(e) => {
+							e.currentTarget.blur();
+							onPlay();
+						}}
+						className="mt-2 rounded-full px-10 py-3.5 text-base font-extrabold text-white shadow-[0_8px_30px_rgba(124,92,255,0.4)]"
 						style={{
 							backgroundImage: `linear-gradient(135deg, ${accent}, #00e5ff)`,
 						}}

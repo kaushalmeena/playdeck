@@ -122,6 +122,13 @@ export default function ReflexRush({
 			result={result}
 			chips={[`ROUND ${round}/${ROUNDS}`, `${score} PTS`]}
 			onPlay={start}
+			onQuit={() => {
+				clearTimers();
+				run.current.state = "idle";
+				setPad("idle");
+				setPadText("READY");
+				cancel();
+			}}
 			onPlayingChange={onPlayingChange}
 		>
 			<div className="flex h-full w-full items-center justify-center">

@@ -10,9 +10,23 @@ export type PlayerState = {
 	best: Record<string, number>;
 	/** every run's score adds up here — the global score */
 	total: number;
+	/** finished runs per game id — powers the "For You" ordering */
+	plays: Record<string, number>;
+	/** daily challenge: dateKey -> game ids won that day */
+	daily: Record<string, Array<string>>;
+	/** daily-challenge streak */
+	streak: { count: number; last: string };
 };
 
-const DEFAULT: PlayerState = { favorites: [], levels: {}, best: {}, total: 0 };
+const DEFAULT: PlayerState = {
+	favorites: [],
+	levels: {},
+	best: {},
+	total: 0,
+	plays: {},
+	daily: {},
+	streak: { count: 0, last: "" },
+};
 
 let state: PlayerState = DEFAULT;
 let loaded = false;
@@ -62,21 +76,54 @@ export const store = {
 	},
 
 	/**
-	 * Record a finished run. Score always adds to the global total,
-	 * best is per-game, and a win bumps the game's level.
+	 * Record a finished run. `pts` (already combo-multiplied by the feed)
+	 * adds to the global total, best is per-game, a win bumps the level.
 	 * Returns the level after recording (for the level-up toast).
 	 */
-	recordEnd(id: string, won: boolean, score: number): number {
+	recordEnd(id: string, won: boolean, pts: number): number {
 		const s = load();
-		const pts = Math.max(0, Math.floor(score) || 0);
+		const p = Math.max(0, Math.floor(pts) || 0);
 		const level = (s.levels[id] ?? 1) + (won ? 1 : 0);
 		commit({
 			...s,
-			total: s.total + pts,
-			best: { ...s.best, [id]: Math.max(s.best[id] ?? 0, pts) },
+			total: s.total + p,
+			best: { ...s.best, [id]: Math.max(s.best[id] ?? 0, p) },
 			levels: { ...s.levels, [id]: level },
+			plays: { ...s.plays, [id]: (s.plays[id] ?? 0) + 1 },
 		});
 		return level;
+	},
+
+	/** add bonus points to the global total (daily-completion reward) */
+	addBonus(pts: number) {
+		const s = load();
+		commit({ ...s, total: s.total + pts });
+	},
+
+	/**
+	 * Record a win inside the daily challenge. When it completes the full
+	 * set for the day, bumps the streak and returns true (exactly once).
+	 */
+	recordDailyWin(date: string, id: string, required: Array<string>): boolean {
+		const s = load();
+		const won = s.daily[date] ?? [];
+		if (won.includes(id)) return false;
+		const nextWon = [...won, id];
+		const completed = required.every((r) => nextWon.includes(r));
+		const wasCompleted = required.every((r) => won.includes(r));
+
+		let streak = s.streak;
+		if (completed && !wasCompleted) {
+			const yesterday = new Date(`${date}T12:00:00`);
+			yesterday.setDate(yesterday.getDate() - 1);
+			const yKey = yesterday.toISOString().slice(0, 10);
+			streak = {
+				count: s.streak.last === yKey ? s.streak.count + 1 : 1,
+				last: date,
+			};
+		}
+		commit({ ...s, daily: { ...s.daily, [date]: nextWon }, streak });
+		return completed && !wasCompleted;
 	},
 };
 

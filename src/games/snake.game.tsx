@@ -217,6 +217,7 @@ export default function NeonSnake({
 			playing={playing}
 			result={result}
 			chips={[`🍏 ${eaten}/${goal}`, `${eaten * 10} PTS`]}
+			onQuit={cancel}
 			onPlay={start}
 			onPlayingChange={onPlayingChange}
 		>

@@ -120,6 +120,7 @@ export default function MindMatch({
 			playing={playing}
 			result={result}
 			chips={[`${matched}/${pairs} PAIRS`, `${Math.ceil(timeLeft)}s`]}
+			onQuit={cancel}
 			onPlay={start}
 			onPlayingChange={onPlayingChange}
 		>
