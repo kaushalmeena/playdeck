@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import type { GameEntry } from "../../games/registry";
 import { useInfiniteFeed } from "../../hooks/useInfiniteFeed";
@@ -13,6 +13,7 @@ import { store, usePlayerState } from "../../lib/storage";
 import { useTheme } from "../../lib/theme";
 import { EmptyState } from "./EmptyState";
 import { FeedHeader } from "./FeedHeader";
+import { FeedLoader } from "./FeedLoader";
 import { GameCard } from "./GameCard";
 import { NavArrows } from "./NavArrows";
 import { ShareDailyButton } from "./ShareDailyButton";
@@ -26,7 +27,7 @@ export function GameFeed({
 }) {
 	const player = usePlayerState();
 	const { theme, toggle } = useTheme();
-	const shuffled = useShuffledGames(games);
+	const { games: shuffled, settled } = useShuffledGames(games);
 
 	const today = dateKey();
 	const daily = useMemo(() => dailyGames(games, today), [games, today]);
@@ -59,13 +60,37 @@ export function GameFeed({
 		[tab, shuffled, daily, player, rank, openCount],
 	);
 
+	// Hold the splash until the deck has been shuffled and the first card's
+	// chunk has arrived, so the feed never opens on an empty placeholder.
+	const firstId = list[0]?.id;
+	const [chunkFor, setChunkFor] = useState<string | null>(null);
+	useEffect(() => {
+		if (!settled) return;
+		const first = list[0];
+		if (!first) return;
+		let alive = true;
+		first.load().finally(() => {
+			if (alive) setChunkFor(first.id);
+		});
+		return () => {
+			alive = false;
+		};
+	}, [settled, list]);
+
+	const ready = settled && (!firstId || chunkFor === firstId);
+
 	const feed = useInfiniteFeed({
 		length: list.length,
-		resetKey: `${tab}:${list.length}:${shuffled[0]?.id ?? ""}`,
+		// `ready` is part of the key so the feed re-homes to the middle copy
+		// once the scroller actually exists — while the splash is up there is
+		// no element to position.
+		resetKey: `${tab}:${list.length}:${shuffled[0]?.id ?? ""}:${ready}`,
 		frozen: playingId !== null,
 	});
 
 	const frozen = playingId !== null;
+
+	if (!ready) return <FeedLoader />;
 
 	return (
 		<div className="relative h-full w-full bg-bg">

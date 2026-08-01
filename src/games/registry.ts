@@ -23,12 +23,20 @@ const loaders = import.meta.glob(["./*.game.tsx", "!./_*.game.tsx"], {
 export type GameEntry = GameMeta & {
 	id: string;
 	Component: ComponentType<GameProps>;
+	/** start (or join) the download of this game's chunk */
+	load: () => Promise<unknown>;
 };
+
+const idOf = (path: string) =>
+	path.replace(/^\.\//, "").replace(/\.game\.tsx$/, "");
 
 export const GAMES: Array<GameEntry> = Object.entries(metas)
 	.map(([path, meta]) => ({
 		...meta,
-		id: path.replace(/^\.\//, "").replace(/\.game\.tsx$/, ""),
+		id: idOf(path),
 		Component: lazy(() => loaders[path]().then((C) => ({ default: C }))),
+		// import() caches, so calling this and rendering the lazy component
+		// share one request
+		load: () => loaders[path](),
 	}))
 	.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
