@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { themeInitScript } from "../lib/theme";
 import appCss from "../styles.css?url";
 
+/** "/" locally, "/<repo>/" on GitHub Pages — always ends in a slash */
+const BASE = import.meta.env.BASE_URL;
+
 export const Route = createRootRoute({
 	head: () => ({
 		meta: [
@@ -29,11 +32,11 @@ export const Route = createRootRoute({
 			},
 			{
 				rel: "manifest",
-				href: "/manifest.webmanifest",
+				href: `${BASE}manifest.webmanifest`,
 			},
 			{
 				rel: "icon",
-				href: "/icon.svg",
+				href: `${BASE}icon.svg`,
 				type: "image/svg+xml",
 			},
 		],
@@ -51,7 +54,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	// offline support (production only — caching would fight Vite in dev)
 	useEffect(() => {
 		if (import.meta.env.PROD && "serviceWorker" in navigator) {
-			navigator.serviceWorker.register("/sw.js").catch(() => {});
+			navigator.serviceWorker
+				.register(`${BASE}sw.js`, { scope: BASE })
+				.catch(() => {});
 		}
 	}, []);
 
