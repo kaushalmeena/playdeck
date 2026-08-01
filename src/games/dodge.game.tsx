@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, sfx, useCountdown, useGameKeys, useRun } from "./kit";
+import {
+	randInt,
+	sfx,
+	themeColor,
+	useCountdown,
+	useGameKeys,
+	useRun,
+} from "./kit";
 
 export const meta: GameMeta = {
 	title: "Dodge Rush",
@@ -42,6 +49,8 @@ export default function DodgeRush({
 		const cv = canvasRef.current;
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
+		// resolved per run so the shapes follow the active theme
+		const ink = themeColor("text");
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		cv.width = cv.clientWidth * dpr;
 		cv.height = cv.clientHeight * dpr;
@@ -99,7 +108,7 @@ export default function DodgeRush({
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 20;
-			ctx.fillStyle = "#eaffff";
+			ctx.fillStyle = ink;
 			ctx.beginPath();
 			ctx.arc(laneX(r.lane), py, 16, 0, 7);
 			ctx.fill();

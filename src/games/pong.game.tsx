@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, useRun } from "./kit";
+import { sfx, themeColor, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Keep Up",
@@ -34,6 +34,8 @@ export default function KeepUp({
 		const cv = canvasRef.current;
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
+		// resolved per run so the shapes follow the active theme
+		const ink = themeColor("text");
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		cv.width = cv.clientWidth * dpr;
 		cv.height = cv.clientHeight * dpr;
@@ -99,14 +101,14 @@ export default function KeepUp({
 
 			// draw
 			ctx.clearRect(0, 0, W, H);
-			ctx.fillStyle = "#eaeaf2";
+			ctx.fillStyle = ink;
 			ctx.beginPath();
 			ctx.roundRect(padX - PADDLE_W / 2, padY, PADDLE_W, 13, 7);
 			ctx.fill();
 			ctx.save();
 			ctx.shadowColor = "#4d9fff";
 			ctx.shadowBlur = 18;
-			ctx.fillStyle = "#dceaff";
+			ctx.fillStyle = ink;
 			ctx.beginPath();
 			ctx.arc(r.bx, r.by, 10, 0, 7);
 			ctx.fill();

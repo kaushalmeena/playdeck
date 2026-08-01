@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, useGameKeys, useRun } from "./kit";
+import { sfx, themeColor, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Neon Snake",
@@ -62,6 +62,8 @@ export default function NeonSnake({
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
 		const r = run.current;
+		// read once per frame, never per segment — this triggers a style read
+		const head = themeColor("text");
 		ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
 		// no board plate — the snake and orb sit straight on the stage
 		// food
@@ -84,7 +86,7 @@ export default function NeonSnake({
 			const t = i / r.snake.length;
 			ctx.fillStyle =
 				i === 0
-					? "#eaffe9"
+					? head
 					: `rgba(${(18 + 40 * t) | 0},183,${(106 + 80 * (1 - t)) | 0},${1 - t * 0.5})`;
 			ctx.beginPath();
 			ctx.roundRect(

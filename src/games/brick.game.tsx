@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, useRun } from "./kit";
+import { sfx, themeColor, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Brick Break",
@@ -44,6 +44,8 @@ export default function BrickBreak({
 		const cv = canvasRef.current;
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
+		// resolved per run so the shapes follow the active theme
+		const ink = themeColor("text");
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		cv.width = cv.clientWidth * dpr;
 		cv.height = cv.clientHeight * dpr;
@@ -155,14 +157,14 @@ export default function BrickBreak({
 				ctx.roundRect(b.x, b.y, BW, BH, 5);
 				ctx.fill();
 			});
-			ctx.fillStyle = "#eaeaf2";
+			ctx.fillStyle = ink;
 			ctx.beginPath();
 			ctx.roundRect(padX - PADDLE_W / 2, padY, PADDLE_W, 12, 6);
 			ctx.fill();
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 16;
-			ctx.fillStyle = "#eaffff";
+			ctx.fillStyle = ink;
 			ctx.beginPath();
 			ctx.arc(r.bx, r.by, 8, 0, 7);
 			ctx.fill();

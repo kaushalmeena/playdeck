@@ -123,6 +123,23 @@ export function useCountdown(playing: boolean, total: number): number {
 	return timeLeft;
 }
 
+/**
+ * Read a theme token (`"text"`, `"accent"`, …) so canvas games stay visible in
+ * both themes — a hardcoded near-white shape disappears on the light one.
+ *
+ * Call this when a run starts rather than per frame; it triggers a style read.
+ */
+export function themeColor(token: string, fallback = "#eaeaf2"): string {
+	try {
+		const value = getComputedStyle(document.documentElement)
+			.getPropertyValue(`--t-${token}`)
+			.trim();
+		return value || fallback;
+	} catch {
+		return fallback;
+	}
+}
+
 export const randInt = (min: number, max: number): number =>
 	min + Math.floor(Math.random() * (max - min + 1));
 
