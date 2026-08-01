@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GameChrome } from "../components/GameChrome";
+import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Glow Flap",
@@ -164,15 +164,7 @@ export default function GlowFlap({
 		if (!active && playing) cancel();
 	}, [active, playing, cancel]);
 
-	// space to flap
-	useEffect(() => {
-		if (!playing) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.code === "Space") flap();
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	});
+	useGameKeys(playing, { Space: flap, ArrowUp: flap });
 
 	return (
 		<GameChrome

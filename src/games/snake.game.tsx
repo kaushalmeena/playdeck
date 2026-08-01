@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GameChrome } from "../components/GameChrome";
+import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Neon Snake",
@@ -195,17 +195,16 @@ export default function NeonSnake({
 		r.queued = { x: nx, y: ny };
 	}, []);
 
-	useEffect(() => {
-		if (!playing) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "ArrowUp" || e.key === "w") turn(0, -1);
-			else if (e.key === "ArrowDown" || e.key === "s") turn(0, 1);
-			else if (e.key === "ArrowLeft" || e.key === "a") turn(-1, 0);
-			else if (e.key === "ArrowRight" || e.key === "d") turn(1, 0);
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [playing, turn]);
+	useGameKeys(playing, {
+		ArrowUp: () => turn(0, -1),
+		w: () => turn(0, -1),
+		ArrowDown: () => turn(0, 1),
+		s: () => turn(0, 1),
+		ArrowLeft: () => turn(-1, 0),
+		a: () => turn(-1, 0),
+		ArrowRight: () => turn(1, 0),
+		d: () => turn(1, 0),
+	});
 
 	return (
 		<GameChrome
