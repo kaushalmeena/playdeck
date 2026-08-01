@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { sfx } from "../../lib/sfx";
 import type { Theme } from "../../lib/theme";
+import { Logo } from "../Logo";
 import { FeedStats } from "./FeedStats";
 import { FeedTabs } from "./FeedTabs";
 
@@ -41,12 +42,12 @@ export function FeedHeader({
 					else navigate({ to: "/", viewTransition: true });
 				}}
 				aria-label="Back to the start"
-				className="pointer-events-auto shrink-0 border-0 bg-transparent p-0 text-base font-black tracking-widest whitespace-nowrap"
+				className="pointer-events-auto flex shrink-0 items-center gap-2 border-0 bg-transparent p-0 text-base font-black tracking-widest whitespace-nowrap"
 			>
-				🎮{/* the wordmark needs room the narrowest phones don't have */}
+				<Logo size={22} />
+				{/* the wordmark needs room the narrowest phones don't have */}
 				<span className="hidden bg-linear-to-r from-accent to-accent2 bg-clip-text text-transparent sm:inline">
-					{" "}
-					GAMESHORTS
+					PLAYDECK
 				</span>
 			</button>
 

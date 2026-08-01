@@ -1,11 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Playdeck">
+	<title>Playdeck</title>
 	<defs>
-		<linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+		<linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
 			<stop offset="0" stop-color="#7c5cff"/>
 			<stop offset="1" stop-color="#00e5ff"/>
 		</linearGradient>
 	</defs>
 	<rect width="512" height="512" rx="112" fill="#0b0b14"/>
-	<rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="url(#g)" stroke-width="16"/>
-	<text x="256" y="330" font-size="240" text-anchor="middle">🎮</text>
+	<!-- d-pad body: long arms, 64–448 on both axes, 152 thick -->
+	<path fill="url(#mark)" d="M204 64h104a24 24 0 0 1 24 24v92h92a24 24 0 0 1 24 24v104a24 24 0 0 1-24 24h-92v92a24 24 0 0 1-24 24H204a24 24 0 0 1-24-24v-92H88a24 24 0 0 1-24-24V204a24 24 0 0 1 24-24h92V88a24 24 0 0 1 24-24z"/>
+	<!-- direction arrows and the centre hub, knocked out -->
+	<g fill="#0b0b14">
+		<path d="M256 104l34 56h-68z"/>
+		<path d="M256 408l-34-56h68z"/>
+		<path d="M104 256l56-34v68z"/>
+		<path d="M408 256l-56-34v68z"/>
+		<circle cx="256" cy="256" r="40"/>
+	</g>
 </svg>
