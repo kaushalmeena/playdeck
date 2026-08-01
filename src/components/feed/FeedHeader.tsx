@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { sfx } from "../../lib/sfx";
 import type { Theme } from "../../lib/theme";
 import { FeedStats } from "./FeedStats";
 import { FeedTabs } from "./FeedTabs";
@@ -30,19 +31,21 @@ export function FeedHeader({
 	const navigate = useNavigate();
 
 	return (
-		<header className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between gap-2 bg-gradient-to-b from-bg/95 via-bg/60 to-transparent px-4 pt-3 pb-8">
+		<header className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between gap-1.5 bg-linear-to-b from-bg/95 via-bg/60 to-transparent px-3 pt-3 pb-8 sm:gap-2 sm:px-4">
 			<button
 				type="button"
 				onClick={(e) => {
 					e.currentTarget.blur();
+					sfx.press();
 					if (isHome) onLogoRewind();
 					else navigate({ to: "/", viewTransition: true });
 				}}
 				aria-label="Back to the start"
-				className="pointer-events-auto border-0 bg-transparent p-0 text-base font-black tracking-widest"
+				className="pointer-events-auto shrink-0 border-0 bg-transparent p-0 text-base font-black tracking-widest whitespace-nowrap"
 			>
-				🎮{" "}
-				<span className="bg-gradient-to-r from-accent to-accent2 bg-clip-text text-transparent">
+				🎮{/* the wordmark needs room the narrowest phones don't have */}
+				<span className="hidden bg-linear-to-r from-accent to-accent2 bg-clip-text text-transparent sm:inline">
+					{" "}
 					GAMESHORTS
 				</span>
 			</button>

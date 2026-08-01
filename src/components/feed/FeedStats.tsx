@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { comboMultiplier } from "../../hooks/useRunRecorder";
+import { sfx, useSoundPref } from "../../lib/sfx";
 import type { Theme } from "../../lib/theme";
 
 type Props = {
@@ -20,7 +21,7 @@ function Pill({
 	return (
 		<div
 			className={clsx(
-				"rounded-full border border-line bg-card/80 px-3 py-1.5 text-xs font-bold tracking-wider backdrop-blur-md",
+				"shrink-0 rounded-full border border-line bg-card/80 px-2 py-1 text-[10px] font-bold tracking-wider backdrop-blur-md sm:px-3 sm:py-1.5 sm:text-xs",
 				className,
 			)}
 		>
@@ -36,8 +37,10 @@ export function FeedStats({
 	theme,
 	onToggleTheme,
 }: Props) {
+	const sound = useSoundPref();
+
 	return (
-		<div className="pointer-events-auto flex items-center gap-2">
+		<div className="pointer-events-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
 			{streak > 0 && <Pill className="text-[#ffb13d]">🔥 {streak}</Pill>}
 			{combo >= 2 && (
 				<Pill className="border-accent/50 text-accent">
@@ -49,10 +52,23 @@ export function FeedStats({
 				type="button"
 				onClick={(e) => {
 					e.currentTarget.blur();
+					sound.toggle();
+				}}
+				aria-label={sound.on ? "Mute sound" : "Unmute sound"}
+				aria-pressed={sound.on}
+				className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:h-8 sm:w-8 sm:text-sm"
+			>
+				{sound.on ? "🔊" : "🔇"}
+			</button>
+			<button
+				type="button"
+				onClick={(e) => {
+					e.currentTarget.blur();
+					sfx.toggle(theme === "light");
 					onToggleTheme();
 				}}
 				aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-				className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-card/80 text-sm backdrop-blur-md"
+				className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:h-8 sm:w-8 sm:text-sm"
 			>
 				{theme === "dark" ? "🌙" : "☀️"}
 			</button>
