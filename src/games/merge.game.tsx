@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -193,9 +194,11 @@ export default function TileMerge({
 						<div
 							// biome-ignore lint/suspicious/noArrayIndexKey: fixed 4×4 grid
 							key={i}
-							className={`flex aspect-square items-center justify-center rounded-xl border-2 font-black transition-colors duration-100 ${
-								value === 0 ? "border-line/40 bg-card/30" : tileStyle(value)
-							} ${value >= 1000 ? "text-xl" : "text-2xl"}`}
+							className={clsx(
+								"flex aspect-square items-center justify-center rounded-xl border-2 font-black transition-colors duration-100",
+								value === 0 ? "border-line/40 bg-card/30" : tileStyle(value),
+								value >= 1000 ? "text-xl" : "text-2xl",
+							)}
 						>
 							{value || ""}
 						</div>

@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -92,7 +93,10 @@ export default function RpsReact({
 		>
 			<div className="flex h-full w-full flex-col items-center justify-center gap-8 px-6">
 				<div
-					className={`text-sm font-black tracking-[0.4em] ${wantWin ? "text-good" : "text-danger"}`}
+					className={clsx(
+						"text-sm font-black tracking-[0.4em]",
+						wantWin ? "text-good" : "text-danger",
+					)}
 				>
 					{playing ? (wantWin ? "WIN AGAINST" : "LOSE AGAINST") : ""}
 				</div>

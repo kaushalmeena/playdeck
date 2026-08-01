@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -158,9 +159,10 @@ export default function EchoPads({
 							key={i}
 							type="button"
 							onPointerDown={() => tap(i)}
-							className={`h-[min(34vw,150px)] w-[min(34vw,150px)] cursor-pointer rounded-3xl border-2 border-line transition-all duration-100 active:scale-95 ${
-								lit === i ? "scale-105 opacity-100" : "opacity-75"
-							}`}
+							className={clsx(
+								"h-[min(34vw,150px)] w-[min(34vw,150px)] cursor-pointer rounded-3xl border-2 border-line transition-all duration-100 active:scale-95",
+								lit === i ? "scale-105 opacity-100" : "opacity-75",
+							)}
 							style={{
 								background: color,
 								boxShadow: lit === i ? `0 0 44px ${color}` : "none",

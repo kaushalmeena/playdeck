@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -117,11 +118,12 @@ export default function BubblePop({
 							onAnimationEnd={() =>
 								setBubbles((bs) => bs.filter((x) => x.id !== b.id))
 							}
-							className={`absolute flex items-center justify-center rounded-full border-2 ${
+							className={clsx(
+								"absolute flex items-center justify-center rounded-full border-2",
 								b.bomb
 									? "border-danger/70 bg-danger/15"
-									: "border-accent2/60 bg-accent2/10"
-							}`}
+									: "border-accent2/60 bg-accent2/10",
+							)}
 							style={{
 								left: `${b.x}%`,
 								bottom: -100,

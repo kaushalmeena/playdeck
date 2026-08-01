@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -143,13 +144,14 @@ export default function PathRecall({
 								key={i}
 								type="button"
 								onPointerDown={() => tap(i)}
-								className={`aspect-square rounded-xl border-2 ${
+								className={clsx(
+									"aspect-square rounded-xl border-2",
 									lit
 										? "border-[#b06bff] bg-[#b06bff]/45 shadow-[0_0_28px_rgba(176,107,255,0.6)]"
 										: walked.has(i) && phase === "input"
 											? "border-good bg-good/25"
-											: "border-line bg-card"
-								}`}
+											: "border-line bg-card",
+								)}
 							/>
 						);
 					})}

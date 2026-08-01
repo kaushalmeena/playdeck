@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -106,11 +107,12 @@ export default function LightsOut({
 							key={i}
 							type="button"
 							onPointerDown={() => tap(i)}
-							className={`h-[min(24vw,110px)] w-[min(24vw,110px)] rounded-2xl border-2 ${
+							className={clsx(
+								"h-[min(24vw,110px)] w-[min(24vw,110px)] rounded-2xl border-2",
 								lit
 									? "border-[#ffd24d] bg-[#ffd24d]/25 shadow-[0_0_36px_rgba(255,210,77,0.45)]"
-									: "border-line bg-card"
-							}`}
+									: "border-line bg-card",
+							)}
 						>
 							<span className={lit ? "" : "opacity-20"}>💡</span>
 						</button>

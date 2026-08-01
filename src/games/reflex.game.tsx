@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -135,7 +136,10 @@ export default function ReflexRush({
 				<button
 					type="button"
 					onPointerDown={tap}
-					className={`flex h-[min(64vw,300px)] w-[min(64vw,300px)] cursor-pointer items-center justify-center rounded-full border-2 text-2xl font-black tracking-[0.2em] transition-[background,box-shadow] duration-100 ${padClasses}`}
+					className={clsx(
+						"flex h-[min(64vw,300px)] w-[min(64vw,300px)] cursor-pointer items-center justify-center rounded-full border-2 text-2xl font-black tracking-[0.2em] transition-[background,box-shadow] duration-100",
+						padClasses,
+					)}
 				>
 					{padText}
 				</button>

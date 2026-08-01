@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { comboMultiplier } from "../../hooks/useRunRecorder";
 import type { Theme } from "../../lib/theme";
 
@@ -11,14 +12,17 @@ type Props = {
 
 function Pill({
 	children,
-	className = "",
+	className,
 }: {
 	children: React.ReactNode;
 	className?: string;
 }) {
 	return (
 		<div
-			className={`rounded-full border border-line bg-card/80 px-3 py-1.5 text-xs font-bold tracking-wider backdrop-blur-md ${className}`}
+			className={clsx(
+				"rounded-full border border-line bg-card/80 px-3 py-1.5 text-xs font-bold tracking-wider backdrop-blur-md",
+				className,
+			)}
 		>
 			{children}
 		</div>

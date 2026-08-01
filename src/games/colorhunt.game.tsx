@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -135,9 +136,10 @@ export default function ColorHunt({
 							key={`${doneCount}-${i}`}
 							type="button"
 							onPointerDown={() => tap(i)}
-							className={`aspect-square rounded-xl border border-line transition-opacity ${
-								t.found ? "opacity-15" : ""
-							}`}
+							className={clsx(
+								"aspect-square rounded-xl border border-line transition-opacity",
+								t.found && "opacity-15",
+							)}
 							style={{ background: t.hex }}
 						/>
 					))}

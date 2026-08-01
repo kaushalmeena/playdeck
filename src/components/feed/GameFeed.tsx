@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useMemo } from "react";
 import { Toaster } from "sonner";
 import type { GameEntry } from "../../games/registry";
@@ -85,9 +86,10 @@ export function GameFeed({
 			<div
 				ref={feed.scrollerRef}
 				onScroll={feed.onScroll}
-				className={`no-scrollbar h-full w-full snap-y snap-mandatory overscroll-contain ${
-					frozen ? "overflow-hidden" : "overflow-y-auto"
-				}`}
+				className={clsx(
+					"no-scrollbar h-full w-full snap-y snap-mandatory overscroll-contain",
+					frozen ? "overflow-hidden" : "overflow-y-auto",
+				)}
 			>
 				{list.length === 0 ? (
 					<EmptyState

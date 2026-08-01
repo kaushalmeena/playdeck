@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -114,9 +115,10 @@ export default function DigitRecall({
 							type="button"
 							onPointerDown={() => press(k)}
 							disabled={phase !== "input"}
-							className={`h-16 w-20 rounded-2xl border border-line bg-card text-2xl font-extrabold disabled:opacity-40 ${
-								k === "0" ? "col-start-2" : ""
-							}`}
+							className={clsx(
+								"h-16 w-20 rounded-2xl border border-line bg-card text-2xl font-extrabold disabled:opacity-40",
+								k === "0" && "col-start-2",
+							)}
 						>
 							{k}
 						</button>

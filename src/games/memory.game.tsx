@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
@@ -141,13 +142,14 @@ export default function MindMatch({
 							key={t.key}
 							type="button"
 							onClick={() => flip(t.key)}
-							className={`flex h-[min(18vw,84px)] w-[min(18vw,84px)] cursor-pointer items-center justify-center rounded-xl border text-3xl transition-all duration-150 ${
+							className={clsx(
+								"flex h-[min(18vw,84px)] w-[min(18vw,84px)] cursor-pointer items-center justify-center rounded-xl border text-3xl transition-all duration-150",
 								t.state === "done"
 									? "border-good bg-good/10 opacity-55"
 									: t.state === "open"
 										? "scale-105 border-[#d637a4] bg-accent/15"
-										: "border-line bg-card"
-							}`}
+										: "border-line bg-card",
+							)}
 						>
 							<span
 								className={t.state === "closed" ? "opacity-0" : "opacity-100"}

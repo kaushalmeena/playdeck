@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { GameEntry } from "../../games/registry";
 
 type Props = {
@@ -26,11 +27,12 @@ export function CardRail({
 				}}
 				aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
 				aria-pressed={isFavorite}
-				className={`flex h-12 w-12 items-center justify-center rounded-full border text-xl backdrop-blur-md ${
+				className={clsx(
+					"flex h-12 w-12 items-center justify-center rounded-full border text-xl backdrop-blur-md",
 					isFavorite
 						? "border-danger/60 bg-danger/25 text-danger"
-						: "border-line bg-card/70 text-text/80"
-				}`}
+						: "border-line bg-card/70 text-text/80",
+				)}
 			>
 				{isFavorite ? "♥" : "♡"}
 			</button>
