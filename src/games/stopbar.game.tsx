@@ -115,7 +115,7 @@ export default function PerfectStop({
 					{/* cursor */}
 					<div
 						ref={cursorRef}
-						className="absolute top-[-8px] h-9 w-1.5 -translate-x-1/2 rounded-full bg-accent2 shadow-[0_0_16px_rgba(0,229,255,0.8)]"
+						className="absolute -top-2 h-9 w-1.5 -translate-x-1/2 rounded-full bg-accent2 shadow-[0_0_16px_rgba(0,229,255,0.8)]"
 						style={{ left: "0%" }}
 					/>
 				</div>

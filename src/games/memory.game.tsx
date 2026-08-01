@@ -127,7 +127,7 @@ export default function MindMatch({
 			{/* timer bar */}
 			{playing && (
 				<div
-					className="absolute top-0 left-0 z-10 h-1 w-full origin-left bg-gradient-to-r from-[#d637a4] to-[#ff5cd0] transition-transform duration-100"
+					className="absolute top-0 left-0 z-10 h-1 w-full origin-left bg-linear-to-r from-[#d637a4] to-[#ff5cd0] transition-transform duration-100"
 					style={{ transform: `scaleX(${Math.max(timeLeft / totalTime, 0)})` }}
 				/>
 			)}

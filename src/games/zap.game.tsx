@@ -131,7 +131,7 @@ export default function ZapBot({
 			{/* timer bar */}
 			{playing && (
 				<div
-					className="absolute top-0 left-0 z-10 h-1 w-full origin-left bg-gradient-to-r from-[#ff8a1e] to-[#ffb13d] transition-transform duration-100"
+					className="absolute top-0 left-0 z-10 h-1 w-full origin-left bg-linear-to-r from-[#ff8a1e] to-[#ffb13d] transition-transform duration-100"
 					style={{ transform: `scaleX(${Math.max(timeLeft / DURATION, 0)})` }}
 				/>
 			)}
