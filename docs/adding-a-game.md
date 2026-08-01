@@ -16,9 +16,10 @@ That is the whole workflow — the dev server picks the file up immediately.
 ## How discovery works
 
 [`src/games/registry.ts`](../src/games/registry.ts) globs `./*.game.tsx` with
-`import.meta.glob`. Metadata is loaded eagerly, because it is tiny and the
-feed needs every title up front; the component itself is a lazy chunk that
-only downloads when its card scrolls near the viewport.
+`import.meta.glob`. Metadata is read eagerly, because the feed needs every
+title up front, and the registry resolves components on demand and caches
+them — which is what lets a card the feed has already prepared render on its
+first frame instead of flashing a placeholder.
 
 ## The contract
 
@@ -52,8 +53,8 @@ export default function MyGame({ level, active, onEnd, onPlayingChange }: GamePr
 | `instructions` | How to play, shown before the first run                      |
 
 `order` is the game's rank for [progression
-unlocks](./architecture.md#progression). The feed itself is shuffled every
-visit, so `order` does not decide where the card appears — only when it
+unlocks](./architecture.md#progression). The feed itself is shuffled each
+session, so `order` does not decide where the card appears — only when it
 becomes playable.
 
 ### Props
@@ -95,7 +96,7 @@ useEffect(() => {
 
 Wrap your play area in [`GameChrome`](../src/components/game/GameChrome.tsx).
 It draws the stage background, the in-run HUD chips, the optional progress
-bar, the quit button and the start/result overlay — which is what makes 33
+bar, the quit button and the start/result overlay — which is what makes 32
 independently written games look like one product.
 
 ```tsx

@@ -30,10 +30,10 @@ beat it, so the feed gets harder the longer you stay.
   more, so the catalogue reveals itself as you play.
 - **Daily challenge** — three date-seeded games, identical for every player,
   worth a bonus and a streak, with a shareable result card.
-- **A shuffled deck** — the running order is reshuffled every visit, while
+- **A shuffled deck** — the running order is reshuffled each session, while
   unlocking stays tied to each game's fixed rank.
-- **Games are single files** — one `*.game.tsx` per game, auto-discovered and
-  lazy-loaded; add or delete a file and the feed follows.
+- **Games are single files** — one `*.game.tsx` per game, auto-discovered by
+  the registry; add or delete a file and the feed follows.
 - **Sound and haptics** — synthesized cues for every interaction and in-game
   action, with one toggle to mute the lot; nothing to download.
 - **Installable and offline** — a PWA with a service worker, light and dark
@@ -41,16 +41,14 @@ beat it, so the feed gets harder the longer you stay.
 
 ## How It Works
 
-1. **Discover** — the registry globs `src/games/*.game.tsx` at build time.
-   Metadata loads eagerly so the feed can render every card; each game's code
-   is a separate chunk.
+1. **Discover** — the registry globs `src/games/*.game.tsx` at build time, so
+   the feed knows every card without a manifest.
 2. **Scroll** — the list is rendered three times over and the player sits in
    the middle copy. When scrolling settles in an outer copy the feed jumps one
    list-length, which looks identical and restores the runway in both
    directions.
 3. **Mount** — only the active card and its immediate neighbours are mounted,
-   so a game's chunk downloads as it comes into view and unmounts once it is
-   well behind you.
+   so at most three games hold timers or animation frames at a time.
 4. **Play** — starting a run freezes the feed and hands the game the screen.
    Games claim their keys in the capture phase, so arrows and `Space` steer
    the game instead of paging the feed.
