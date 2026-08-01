@@ -1,63 +1,66 @@
 import { describe, expect, it } from "vitest";
-import {
-	COPIES,
-	extentCount,
-	isLooping,
-	listIndex,
-	rebase,
-	startIndex,
-} from "../loop";
+import { listIndex, startIndex, VIRTUAL_COUNT, virtualCount } from "../loop";
 
-describe("feed loop", () => {
-	it("does not loop a list that cannot scroll", () => {
-		expect(isLooping(0)).toBe(false);
-		expect(isLooping(1)).toBe(false);
-		expect(isLooping(2)).toBe(true);
+const DECK = 32;
+
+describe("virtualCount", () => {
+	it("renders a long virtual list for a deck that can loop", () => {
+		expect(virtualCount(DECK)).toBe(VIRTUAL_COUNT);
 	});
 
-	it("renders the list COPIES times when looping", () => {
-		expect(extentCount(32)).toBe(32 * COPIES);
-		expect(extentCount(1)).toBe(1);
+	it("does not loop a deck with nothing to scroll to", () => {
+		expect(virtualCount(0)).toBe(0);
+		expect(virtualCount(1)).toBe(1);
 	});
 
-	it("opens in the middle copy", () => {
-		expect(startIndex(32)).toBe(32);
-		expect(startIndex(1)).toBe(0);
+	it("stays clear of the browser scroll-height ceiling", () => {
+		// every card is one viewport tall; Chrome caps scroll height near 33m px
+		const tallestSaneViewport = 1200;
+		expect(VIRTUAL_COUNT * tallestSaneViewport).toBeLessThan(33_000_000);
+	});
+});
+
+describe("startIndex", () => {
+	it("opens in the middle so there is runway both ways", () => {
+		const start = startIndex(DECK);
+		expect(start).toBeGreaterThan(VIRTUAL_COUNT / 4);
+		expect(start).toBeLessThan((VIRTUAL_COUNT * 3) / 4);
 	});
 
-	it("leaves indices inside the middle copy alone", () => {
-		expect(rebase(32, 32)).toBeNull();
-		expect(rebase(63, 32)).toBeNull();
-	});
-
-	it("wraps forward off the end of the middle copy", () => {
-		expect(rebase(64, 32)).toBe(32);
-		expect(rebase(95, 32)).toBe(63);
-	});
-
-	it("wraps backward off the start of the middle copy", () => {
-		expect(rebase(31, 32)).toBe(63);
-		expect(rebase(0, 32)).toBe(32);
-	});
-
-	it("keeps the same card visible across a wrap", () => {
-		const len = 32;
-		for (const idx of [0, 5, 31, 64, 80, 95]) {
-			const next = rebase(idx, len);
-			if (next !== null) {
-				expect(listIndex(next, len)).toBe(listIndex(idx, len));
-			}
+	it("opens on the deck's first card", () => {
+		for (const len of [2, 3, 5, 7, 32]) {
+			expect(listIndex(startIndex(len), len)).toBe(0);
 		}
 	});
 
-	it("never rebases when looping is off", () => {
-		expect(rebase(0, 1)).toBeNull();
+	it("opens at 0 when the deck cannot loop", () => {
+		expect(startIndex(0)).toBe(0);
+		expect(startIndex(1)).toBe(0);
+	});
+});
+
+describe("listIndex", () => {
+	it("wraps forward onto the deck", () => {
+		expect(listIndex(0, DECK)).toBe(0);
+		expect(listIndex(DECK, DECK)).toBe(0);
+		expect(listIndex(DECK + 1, DECK)).toBe(1);
 	});
 
-	it("maps extended indices onto the list", () => {
-		expect(listIndex(0, 32)).toBe(0);
-		expect(listIndex(32, 32)).toBe(0);
-		expect(listIndex(65, 32)).toBe(1);
-		expect(listIndex(0, 0)).toBe(0);
+	it("wraps backward onto the deck", () => {
+		expect(listIndex(-1, DECK)).toBe(DECK - 1);
+		expect(listIndex(-DECK, DECK)).toBe(0);
+	});
+
+	it("keeps neighbouring indices on neighbouring cards", () => {
+		const start = startIndex(DECK);
+		expect([-1, 0, 1].map((d) => listIndex(start + d, DECK))).toEqual([
+			DECK - 1,
+			0,
+			1,
+		]);
+	});
+
+	it("survives an empty deck", () => {
+		expect(listIndex(5, 0)).toBe(0);
 	});
 });

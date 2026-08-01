@@ -51,7 +51,7 @@ function GameCardImpl({
 
 	return (
 		<section
-			className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden"
+			className="relative h-full w-full overflow-hidden"
 			data-game={game.id}
 		>
 			{locked ? (

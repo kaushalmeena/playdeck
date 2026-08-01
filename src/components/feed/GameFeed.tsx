@@ -42,7 +42,7 @@ export function GameFeed({
 		today,
 	);
 
-	// Unlocking follows each game's canonical position, so shuffling the feed
+	// Unlocking follows each game's canonical position, so shuffling the deck
 	// never changes which games are available.
 	const rank = useMemo(() => new Map(games.map((g, i) => [g.id, i])), [games]);
 	const openCount = unlockedCount(player.total, games.length);
@@ -61,30 +61,19 @@ export function GameFeed({
 		[tab, shuffled, daily, player, rank, openCount],
 	);
 
-	const { ready, splashUp } = useFeedReady({ settled, first: list[0] });
+	const ready = useFeedReady({ settled, first: list[0] });
+	const frozen = playingId !== null;
 
 	const feed = useInfiniteFeed({
 		length: list.length,
-		// `ready` is part of the key so the feed re-homes to the middle copy
-		// once the scroller actually exists — while the splash is up there is
-		// no element to position.
-		resetKey: `${tab}:${list.length}:${shuffled[0]?.id ?? ""}:${ready}`,
-		frozen: playingId !== null,
+		resetKey: `${tab}:${list.length}:${shuffled[0]?.id ?? ""}`,
+		frozen,
 	});
-
-	const frozen = playingId !== null;
 
 	if (!ready) return <FeedLoader />;
 
 	return (
 		<div className="relative h-full w-full bg-bg">
-			{/* the splash lingers for one fade so the reveal has no gap in it */}
-			{splashUp && (
-				<div className="animate-fade-out pointer-events-none absolute inset-0 z-50">
-					<FeedLoader />
-				</div>
-			)}
-
 			<Toaster position="top-center" theme={theme} offset={60} />
 
 			<FeedHeader
@@ -113,28 +102,37 @@ export function GameFeed({
 						message="No favorites yet — tap ♥ on a game to keep it here."
 					/>
 				) : (
-					Array.from({ length: feed.extent }, (_, i) => {
-						const game = list[listIndex(i, list.length)];
-						const locked = isLocked(game.id);
-						const handlers = handlersFor(game.id);
-						return (
-							<GameCard
-								key={`${game.id}:${Math.floor(i / list.length)}`}
-								game={game}
-								mounted={Math.abs(i - feed.index) <= 1 && !locked}
-								active={i === feed.index}
-								locked={locked}
-								unlockAt={unlockThreshold(rank.get(game.id) ?? 0)}
-								level={player.levels[game.id] ?? 1}
-								best={player.best[game.id] ?? 0}
-								isFavorite={player.favorites.includes(game.id)}
-								dailyDone={tab === "daily" && dailyWon.includes(game.id)}
-								onToggleFavorite={() => store.toggleFavorite(game.id)}
-								onEnd={handlers.end}
-								onPlayingChange={handlers.playing}
-							/>
-						);
-					})
+					// one tall spacer gives the scroller its range; only the cards
+					// near the viewport actually exist
+					<div className="relative w-full" style={{ height: feed.totalSize }}>
+						{feed.cards.map((card) => {
+							const game = list[listIndex(card.index, list.length)];
+							const locked = isLocked(game.id);
+							const handlers = handlersFor(game.id);
+							return (
+								<div
+									key={card.index}
+									className="absolute inset-x-0 snap-start snap-always"
+									style={{ top: card.offset, height: card.size }}
+								>
+									<GameCard
+										game={game}
+										mounted={Math.abs(card.index - feed.index) <= 1 && !locked}
+										active={card.index === feed.index}
+										locked={locked}
+										unlockAt={unlockThreshold(rank.get(game.id) ?? 0)}
+										level={player.levels[game.id] ?? 1}
+										best={player.best[game.id] ?? 0}
+										isFavorite={player.favorites.includes(game.id)}
+										dailyDone={tab === "daily" && dailyWon.includes(game.id)}
+										onToggleFavorite={() => store.toggleFavorite(game.id)}
+										onEnd={handlers.end}
+										onPlayingChange={handlers.playing}
+									/>
+								</div>
+							);
+						})}
+					</div>
 				)}
 			</div>
 

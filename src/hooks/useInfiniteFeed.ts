@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
 	useCallback,
 	useEffect,
@@ -5,12 +6,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { extentCount, rebase, startIndex } from "../lib/feed/loop";
+import { startIndex, virtualCount } from "../lib/feed/loop";
 import { WheelPager } from "../lib/feed/wheel";
 import { sfx } from "../lib/sfx";
 
 type Options = {
-	/** number of cards in the visible list */
+	/** number of cards in the deck */
 	length: number;
 	/** changes to this value re-home the feed (e.g. switching tabs) */
 	resetKey: string;
@@ -18,22 +19,37 @@ type Options = {
 	frozen: boolean;
 };
 
-export type InfiniteFeed = {
-	scrollerRef: React.RefObject<HTMLDivElement | null>;
-	/** index within the extended (repeated) list */
+export type FeedCard = {
+	/** index within the virtual list */
 	index: number;
-	/** how many cards to render */
-	extent: number;
+	/** distance from the top of the scroller, in px */
+	offset: number;
+	size: number;
+};
+
+export type InfiniteFeed = {
+	/** callback ref — the scroller only exists once the splash is gone */
+	scrollerRef: (el: HTMLDivElement | null) => void;
+	/** height of the spacer that gives the scroller its range */
+	totalSize: number;
+	/** the only cards in the DOM */
+	cards: Array<FeedCard>;
+	/** index of the card filling the screen */
+	index: number;
 	onScroll: () => void;
-	/** move by one card, honouring the wheel cooldown */
+	/** move by one card */
 	page: (dir: number) => void;
-	/** jump back to the first card of the list */
+	/** jump back to the first card of the deck */
 	rewind: () => void;
 };
 
 /**
- * Owns the shorts-style scroller: snap paging, keyboard/wheel input and the
- * seamless wrap between repeated copies of the list.
+ * Owns the shorts-style scroller: snap paging, keyboard and wheel input, and
+ * virtualisation.
+ *
+ * The deck is presented as one very long list that wraps with a modulo, so
+ * only a handful of cards exist in the DOM and there is no end to reach —
+ * no repeated copies, and no scroll position to quietly correct afterwards.
  */
 export function useInfiniteFeed({
 	length,
@@ -41,11 +57,9 @@ export function useInfiniteFeed({
 	frozen,
 }: Options): InfiniteFeed {
 	const scrollerRef = useRef<HTMLDivElement>(null);
+	const [cardHeight, setCardHeight] = useState(0);
 	const [index, setIndexState] = useState(() => startIndex(length));
 	const indexRef = useRef(index);
-	const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-		undefined,
-	);
 	const pager = useRef(new WheelPager());
 
 	// read through a ref so input handlers see the live value immediately —
@@ -53,7 +67,7 @@ export function useInfiniteFeed({
 	const frozenRef = useRef(frozen);
 	frozenRef.current = frozen;
 
-	const extent = extentCount(length);
+	const count = virtualCount(length);
 	const home = startIndex(length);
 
 	const setIndex = useCallback((i: number) => {
@@ -61,69 +75,106 @@ export function useInfiniteFeed({
 		setIndexState(i);
 	}, []);
 
+	/**
+	 * Every card is exactly one viewport tall, which is what lets snapping and
+	 * paging agree — so the viewport has to be measured before anything can be
+	 * positioned.
+	 *
+	 * This is a callback ref rather than an effect because the scroller does not
+	 * exist while the splash is up: an effect would run once against nothing and
+	 * never fire again.
+	 */
+	const observer = useRef<ResizeObserver | null>(null);
+	const attachScroller = useCallback((el: HTMLDivElement | null) => {
+		observer.current?.disconnect();
+		scrollerRef.current = el;
+
+		if (!el) {
+			setCardHeight(0);
+			return;
+		}
+		setCardHeight(el.clientHeight);
+		observer.current = new ResizeObserver(() => setCardHeight(el.clientHeight));
+		observer.current.observe(el);
+	}, []);
+
+	useEffect(() => () => observer.current?.disconnect(), []);
+
+	const virtualizer = useVirtualizer({
+		// stays empty until the viewport is measured — sizing items before then
+		// caches a 1px height that the range calculation never recovers from
+		count: cardHeight ? count : 0,
+		getScrollElement: () => scrollerRef.current,
+		estimateSize: () => cardHeight,
+		overscan: 2,
+	});
+
+	// card size is the viewport, so a resize invalidates every measurement
+	useLayoutEffect(() => {
+		if (cardHeight) virtualizer.measure();
+	}, [cardHeight, virtualizer]);
+
+	/**
+	 * Jump straight to a card.
+	 *
+	 * Mandatory scroll-snap can only snap to cards that exist, and only a
+	 * handful do — so assigning a far-away scrollTop gets yanked back to a
+	 * rendered one. Turning snap off for the assignment lets the virtualiser
+	 * see the new offset and render there before snapping resumes.
+	 */
 	const jumpTo = useCallback(
 		(i: number) => {
 			const el = scrollerRef.current;
-			if (!el) return;
-			el.scrollTop = i * el.clientHeight;
+			if (!el || !cardHeight) return;
+			el.style.scrollSnapType = "none";
+			el.scrollTop = i * cardHeight;
 			setIndex(i);
+			requestAnimationFrame(() => {
+				el.style.scrollSnapType = "";
+			});
 		},
-		[setIndex],
+		[cardHeight, setIndex],
 	);
 
-	// re-home whenever the visible list changes identity or size
-	// biome-ignore lint/correctness/useExhaustiveDependencies: resetKey is the intent
+	/**
+	 * Open in the middle of the virtual list, once per deck.
+	 *
+	 * This waits for the spacer to actually be tall enough: setting scrollTop
+	 * beyond the current scroll range just gets clamped to 0, and the spacer only
+	 * reaches full height a render after the viewport is measured.
+	 */
+	const totalSize = virtualizer.getTotalSize();
+	const homedFor = useRef<string | null>(null);
+
 	useLayoutEffect(() => {
+		const el = scrollerRef.current;
+		if (!el || !cardHeight) return;
+		if (totalSize < (home + 1) * cardHeight) return;
+		if (homedFor.current === resetKey) return;
+
+		homedFor.current = resetKey;
 		pager.current.reset();
 		jumpTo(home);
-	}, [resetKey, home, jumpTo]);
-
-	// keep the card aligned when the viewport resizes
-	useEffect(() => {
-		const onResize = () => {
-			const el = scrollerRef.current;
-			if (el) el.scrollTop = indexRef.current * el.clientHeight;
-		};
-		window.addEventListener("resize", onResize);
-		return () => window.removeEventListener("resize", onResize);
-	}, []);
-
-	/** once scrolling settles in an outer copy, hop back to the middle one */
-	const normalize = useCallback(() => {
-		const el = scrollerRef.current;
-		if (!el) return;
-		const h = el.clientHeight;
-		if (!h) return;
-		const current = Math.round(el.scrollTop / h);
-		const next = rebase(current, length);
-		if (next === null) {
-			// re-align any sub-pixel drift so paging stays exact
-			if (el.scrollTop !== current * h) el.scrollTop = current * h;
-			setIndex(current);
-			return;
-		}
-		el.scrollTop = next * h;
-		setIndex(next);
-	}, [length, setIndex]);
+	}, [resetKey, home, cardHeight, totalSize, jumpTo]);
 
 	const onScroll = useCallback(() => {
 		const el = scrollerRef.current;
-		if (!el || !el.clientHeight) return;
-		const current = Math.round(el.scrollTop / el.clientHeight);
+		if (!el || !cardHeight) return;
+		const current = Math.round(el.scrollTop / cardHeight);
 		if (current !== indexRef.current) setIndex(current);
-		clearTimeout(settleTimer.current);
-		settleTimer.current = setTimeout(normalize, 120);
-	}, [normalize, setIndex]);
+	}, [cardHeight, setIndex]);
 
-	useEffect(() => () => clearTimeout(settleTimer.current), []);
-
-	const page = useCallback((dir: number) => {
-		const el = scrollerRef.current;
-		if (!el || !el.clientHeight) return;
-		const target = Math.round(el.scrollTop / el.clientHeight) + dir;
-		sfx.swipe(dir);
-		el.scrollTo({ top: target * el.clientHeight, behavior: "smooth" });
-	}, []);
+	const page = useCallback(
+		(dir: number) => {
+			const el = scrollerRef.current;
+			if (!el || !cardHeight) return;
+			const target = Math.round(el.scrollTop / cardHeight) + dir;
+			if (target < 0 || target >= count) return;
+			sfx.swipe(dir);
+			el.scrollTo({ top: target * cardHeight, behavior: "smooth" });
+		},
+		[cardHeight, count],
+	);
 
 	const rewind = useCallback(() => {
 		pager.current.reset();
@@ -166,5 +217,20 @@ export function useInfiniteFeed({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [page]);
 
-	return { scrollerRef, index, extent, onScroll, page, rewind };
+	return {
+		scrollerRef: attachScroller,
+		totalSize,
+		// nothing can be positioned until the viewport has been measured
+		cards: cardHeight
+			? virtualizer.getVirtualItems().map((item) => ({
+					index: item.index,
+					offset: item.start,
+					size: item.size,
+				}))
+			: [],
+		index,
+		onScroll,
+		page,
+		rewind,
+	};
 }
