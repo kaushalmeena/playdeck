@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, themeColor, useGameKeys, useRun } from "./kit";
+import { sfx, useGameKeys, useRun, useThemeColor } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Glow Flap",
@@ -22,6 +22,7 @@ export default function GlowFlap({
 	onPlayingChange,
 }: GameProps) {
 	const { playing, result, begin, finish, cancel } = useRun(onEnd);
+	const ink = useThemeColor("text");
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [passed, setPassed] = useState(0);
 	const goal = 5 + level;
@@ -83,8 +84,6 @@ export default function GlowFlap({
 			const cv = canvasRef.current;
 			const ctx = cv?.getContext("2d");
 			if (!cv || !ctx) return;
-			// resolved per run so the shapes follow the active theme
-			const ink = themeColor("text");
 			const { w, h } = size();
 			const r = run.current;
 			const sx = shipX();
@@ -152,7 +151,7 @@ export default function GlowFlap({
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 22;
-			ctx.fillStyle = ink;
+			ctx.fillStyle = ink.current;
 			ctx.beginPath();
 			ctx.arc(sx, r.y, 11, 0, 7);
 			ctx.fill();

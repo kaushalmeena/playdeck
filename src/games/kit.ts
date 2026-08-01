@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "../lib/theme";
 
 /** games get their sound palette from the kit — see lib/sfx for the full list */
 export { sfx } from "../lib/sfx";
@@ -127,7 +128,7 @@ export function useCountdown(playing: boolean, total: number): number {
  * Read a theme token (`"text"`, `"accent"`, …) so canvas games stay visible in
  * both themes — a hardcoded near-white shape disappears on the light one.
  *
- * Call this when a run starts rather than per frame; it triggers a style read.
+ * Prefer `useThemeColor` in components — this is the one-shot read behind it.
  */
 export function themeColor(token: string, fallback = "#eaeaf2"): string {
 	try {
@@ -138,6 +139,24 @@ export function themeColor(token: string, fallback = "#eaeaf2"): string {
 	} catch {
 		return fallback;
 	}
+}
+
+/**
+ * A theme colour that stays current, for canvas games.
+ *
+ * Read `.current` inside your draw loop: the value is cached, so there is no
+ * per-frame style read, and it is refreshed when the player flips the theme —
+ * without changing any hook dependency, which would restart the game loop.
+ */
+export function useThemeColor(token: string, fallback?: string) {
+	const ref = useRef(themeColor(token, fallback));
+	const { theme } = useTheme();
+
+	useEffect(() => {
+		ref.current = themeColor(token, fallback);
+	}, [theme, token, fallback]);
+
+	return ref;
 }
 
 export const randInt = (min: number, max: number): number =>

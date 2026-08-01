@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, themeColor, useGameKeys, useRun } from "./kit";
+import { sfx, useGameKeys, useRun, useThemeColor } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Neon Snake",
@@ -22,6 +22,7 @@ export default function NeonSnake({
 	onPlayingChange,
 }: GameProps) {
 	const { playing, result, begin, finish, cancel } = useRun(onEnd);
+	const ink = useThemeColor("text");
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [eaten, setEaten] = useState(0);
 	const goal = 4 + level;
@@ -62,8 +63,8 @@ export default function NeonSnake({
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
 		const r = run.current;
-		// read once per frame, never per segment — this triggers a style read
-		const head = themeColor("text");
+		// one cached read per frame, never per segment
+		const head = ink.current;
 		ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
 		// no board plate — the snake and orb sit straight on the stage
 		// food

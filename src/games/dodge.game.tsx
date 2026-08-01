@@ -4,10 +4,10 @@ import type { GameMeta, GameProps } from "./kit";
 import {
 	randInt,
 	sfx,
-	themeColor,
 	useCountdown,
 	useGameKeys,
 	useRun,
+	useThemeColor,
 } from "./kit";
 
 export const meta: GameMeta = {
@@ -29,6 +29,7 @@ export default function DodgeRush({
 	onPlayingChange,
 }: GameProps) {
 	const { playing, result, begin, finish, cancel } = useRun(onEnd);
+	const ink = useThemeColor("text");
 	const timeLeft = useCountdown(playing, DURATION);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const run = useRef({
@@ -49,8 +50,6 @@ export default function DodgeRush({
 		const cv = canvasRef.current;
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
-		// resolved per run so the shapes follow the active theme
-		const ink = themeColor("text");
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		cv.width = cv.clientWidth * dpr;
 		cv.height = cv.clientHeight * dpr;
@@ -108,7 +107,7 @@ export default function DodgeRush({
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 20;
-			ctx.fillStyle = ink;
+			ctx.fillStyle = ink.current;
 			ctx.beginPath();
 			ctx.arc(laneX(r.lane), py, 16, 0, 7);
 			ctx.fill();

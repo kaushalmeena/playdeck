@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { sfx, themeColor, useCountdown, useRun } from "./kit";
+import { sfx, useCountdown, useRun, useThemeColor } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Orbit Dash",
@@ -24,6 +24,7 @@ export default function OrbitDash({
 	onPlayingChange,
 }: GameProps) {
 	const { playing, result, begin, finish, cancel } = useRun(onEnd);
+	const ink = useThemeColor("text");
 	const timeLeft = useCountdown(playing, DURATION);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const run = useRef({ angle: 0, dir: 1, arcs: [] as Array<Arc>, sinceArc: 0 });
@@ -40,8 +41,6 @@ export default function OrbitDash({
 		const cv = canvasRef.current;
 		const ctx = cv?.getContext("2d");
 		if (!cv || !ctx) return;
-		// resolved per run so the shapes follow the active theme
-		const ink = themeColor("text");
 		const dpr = Math.min(window.devicePixelRatio || 1, 2);
 		cv.width = cv.clientWidth * dpr;
 		cv.height = cv.clientHeight * dpr;
@@ -106,7 +105,7 @@ export default function OrbitDash({
 			ctx.save();
 			ctx.shadowColor = "#b06bff";
 			ctx.shadowBlur = 20;
-			ctx.fillStyle = ink;
+			ctx.fillStyle = ink.current;
 			ctx.beginPath();
 			ctx.arc(cx + Math.cos(r.angle) * R, cy + Math.sin(r.angle) * R, 11, 0, 7);
 			ctx.fill();
