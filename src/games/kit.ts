@@ -56,6 +56,36 @@ export function useRun(onEnd: GameProps["onEnd"]) {
 	return { playing, result, begin, finish, cancel };
 }
 
+/**
+ * Keyboard controls for a running game.
+ *
+ * Listens in the capture phase and stops handled keys from propagating, so a
+ * game always wins the arrow/space keys over the feed's paging — no reliance
+ * on the feed noticing that a run started. Keys are matched against both
+ * `event.key` ("ArrowUp", "w") and `event.code` ("Space").
+ */
+export function useGameKeys(
+	active: boolean,
+	handlers: Record<string, () => void>,
+) {
+	const latest = useRef(handlers);
+	latest.current = handlers;
+
+	useEffect(() => {
+		if (!active) return;
+		const onKey = (e: KeyboardEvent) => {
+			const fn = latest.current[e.key] ?? latest.current[e.code];
+			if (!fn) return;
+			e.preventDefault();
+			e.stopPropagation();
+			fn();
+		};
+		window.addEventListener("keydown", onKey, { capture: true });
+		return () =>
+			window.removeEventListener("keydown", onKey, { capture: true });
+	}, [active]);
+}
+
 /** setTimeout collection that self-cleans on unmount. */
 export function useTimers() {
 	const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
