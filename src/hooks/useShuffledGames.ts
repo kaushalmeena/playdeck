@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { GameEntry } from "../games/registry";
 import { seededShuffle } from "../lib/feed/ordering";
 
-const SEED_KEY = "gs_seed";
+const SEED_KEY = "pd_seed";
 
 const randomSeed = () => 1 + Math.floor(Math.random() * 0xffffffff);
 

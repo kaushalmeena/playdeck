@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-const KEY = "gs_theme";
+const KEY = "pd_theme";
 
 export type Theme = "dark" | "light";
 

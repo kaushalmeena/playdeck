@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
  * autoplay policy happy.
  */
 
-const KEY = "gs_sound";
+const KEY = "pd_sound";
 
 let enabled: boolean | null = null;
 const listeners = new Set<() => void>();

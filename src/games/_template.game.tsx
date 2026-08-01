@@ -1,5 +1,5 @@
 /**
- * GameShorts game template.
+ * Playdeck game template.
  *
  * 1. Copy this file to src/games/<your-game>.game.tsx (no leading
  *    underscore — files starting with "_" are ignored by the feed).

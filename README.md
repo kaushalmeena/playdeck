@@ -1,18 +1,18 @@
 <div align="center">
 
-<img src="public/icon.svg" alt="GameShorts logo" width="96" height="96" />
+<img src="public/icon.svg" alt="Playdeck logo" width="96" height="96" />
 
-# GameShorts
+# Playdeck
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-3DA639?logo=opensourceinitiative&logoColor=white)](LICENSE) [![TanStack Start](https://img.shields.io/badge/TanStack%20Start-1.x-4C6EF5?logo=tanstack&logoColor=white)](https://tanstack.com/start) [![React](https://img.shields.io/badge/React-19-087EA4?logo=react&logoColor=white)](https://react.dev) [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4-0B7285?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 
 **Doomscrolling, except every card is a game you can actually win.**
 
-A shorts-style feed of 32 bite-sized games. Swipe down, play a thirty-second
-run, and keep going — every game tracks **its own level** that climbs as you
-beat it, so the feed gets harder the longer you stay.
+A deck of 32 bite-sized games dealt as an endless vertical feed. Swipe down,
+play a thirty-second run, and keep going — every game tracks **its own level**
+that climbs as you beat it, so the deck gets harder the longer you play.
 
-[**Try it live**](https://kaushalmeena.github.io/game-shorts/)
+[**Try it live**](https://kaushalmeena.github.io/playdeck/)
 
 </div>
 
@@ -20,8 +20,8 @@ beat it, so the feed gets harder the longer you stay.
 
 ## Features
 
-- **Infinite shorts feed** — 32 games in a vertical snap-scroll loop that
-  never ends, paged one card per flick by wheel, swipe, arrow keys or `Space`.
+- **An endless deck** — 32 games in a vertical snap-scroll loop that never
+  runs out, paged one card per flick by wheel, swipe, arrow keys or `Space`.
 - **Per-game levels** — each game remembers your level and scales its own
   difficulty from it; a win raises it, so the feed grows with you.
 - **Combo scoring** — consecutive wins build a multiplier up to ×3 that feeds
@@ -88,11 +88,11 @@ To install and run this project you need:
 
 To set up everything on your local machine, follow these steps:
 
-1. Clone this repo and then change directory to the `game-shorts` folder:
+1. Clone this repo and then change directory to the `playdeck` folder:
 
 ```bash
-git clone https://github.com/kaushalmeena/game-shorts.git
-cd game-shorts
+git clone https://github.com/kaushalmeena/playdeck.git
+cd playdeck
 ```
 
 2. Install project dependencies using npm:
@@ -157,7 +157,7 @@ One-time setup: in the repository's **Settings → Pages**, set **Source** to
 - [ ] Ghost replays — race your own best run
 - [ ] Achievements and profile stats
 
-See the [open issues](https://github.com/kaushalmeena/game-shorts/issues) for
+See the [open issues](https://github.com/kaushalmeena/playdeck/issues) for
 a full list of proposed features and known issues.
 
 ## Documentation
@@ -179,7 +179,7 @@ Full documentation is available in the [`/docs`](./docs) directory.
 ## Contributing
 
 Contributions are welcome! If you find a bug or have a feature request, please
-[open an issue](https://github.com/kaushalmeena/game-shorts/issues/new/choose)
+[open an issue](https://github.com/kaushalmeena/playdeck/issues/new/choose)
 first to discuss it. For code changes, fork the repository, create a branch,
 and open a pull request.
 

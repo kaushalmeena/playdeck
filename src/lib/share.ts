@@ -31,7 +31,7 @@ function draw(data: ShareData): HTMLCanvasElement {
 		"900 52px ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
 	ctx.textAlign = "center";
 	ctx.fillStyle = grad;
-	ctx.fillText("🎮 GAMESHORTS", W / 2, 92);
+	ctx.fillText("🎮 PLAYDECK", W / 2, 92);
 
 	ctx.font =
 		"700 30px ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -66,15 +66,15 @@ export async function shareDailyCard(data: ShareData): Promise<void> {
 	);
 	if (!blob) return;
 
-	const file = new File([blob], `gameshorts-daily-${data.date}.png`, {
+	const file = new File([blob], `playdeck-daily-${data.date}.png`, {
 		type: "image/png",
 	});
 	if (navigator.canShare?.({ files: [file] })) {
 		try {
 			await navigator.share({
 				files: [file],
-				title: "GameShorts Daily Challenge",
-				text: `I cleared the GameShorts daily challenge for ${data.date}! 🏆 ${data.total.toLocaleString()} pts · 🔥 ${data.streak} day streak`,
+				title: "Playdeck Daily Challenge",
+				text: `I cleared the Playdeck daily challenge for ${data.date}! 🏆 ${data.total.toLocaleString()} pts · 🔥 ${data.streak} day streak`,
 			});
 			return;
 		} catch {

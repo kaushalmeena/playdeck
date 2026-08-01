@@ -1,6 +1,6 @@
 {
-	"name": "GameShorts",
-	"short_name": "GameShorts",
+	"name": "Playdeck",
+	"short_name": "Playdeck",
 	"description": "A shorts-style feed of micro-games. Swipe, play, level up.",
 	"start_url": ".",
 	"scope": ".",

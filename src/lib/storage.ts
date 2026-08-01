@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-const KEY = "game-shorts:v1";
+const KEY = "playdeck:v1";
 
 export type PlayerState = {
 	favorites: Array<string>;

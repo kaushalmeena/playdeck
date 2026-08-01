@@ -22,7 +22,7 @@ export const Route = createRootRoute({
 				content: "#0b0b14",
 			},
 			{
-				title: "GameShorts — swipe, play, level up",
+				title: "Playdeck — swipe, play, level up",
 			},
 		],
 		links: [

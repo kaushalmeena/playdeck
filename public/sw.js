@@ -1,5 +1,5 @@
-/* GameShorts service worker — stale-while-revalidate for same-origin GETs */
-const CACHE = "gameshorts-v1";
+/* Playdeck service worker — stale-while-revalidate for same-origin GETs */
+const CACHE = "playdeck-v1";
 
 self.addEventListener("install", () => {
 	self.skipWaiting();
