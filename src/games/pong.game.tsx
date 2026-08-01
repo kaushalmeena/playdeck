@@ -121,7 +121,10 @@ export default function KeepUp({
 		const cv = canvasRef.current;
 		if (!cv || !playing) return;
 		const rect = cv.getBoundingClientRect();
-		run.current.px = Math.min(Math.max((clientX - rect.left) / rect.width, 0.06), 0.94);
+		run.current.px = Math.min(
+			Math.max((clientX - rect.left) / rect.width, 0.06),
+			0.94,
+		);
 	};
 
 	return (

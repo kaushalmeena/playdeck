@@ -14,10 +14,52 @@ export const meta: GameMeta = {
 };
 
 const WORDS: Record<number, Array<string>> = {
-	4: ["GAME", "STAR", "MOON", "FIRE", "SNOW", "JUMP", "BLUE", "FISH", "ROCK", "WIND"],
-	5: ["APPLE", "BRAIN", "CLOUD", "DANCE", "EARTH", "FLAME", "GHOST", "HEART", "LIGHT", "MUSIC"],
-	6: ["ROCKET", "PLANET", "GARDEN", "SILVER", "WINTER", "ORANGE", "FRIEND", "CASTLE", "BRIDGE", "JUNGLE"],
-	7: ["DIAMOND", "THUNDER", "RAINBOW", "MYSTERY", "CRYSTAL", "JOURNEY", "VOLCANO", "PENGUIN"],
+	4: [
+		"GAME",
+		"STAR",
+		"MOON",
+		"FIRE",
+		"SNOW",
+		"JUMP",
+		"BLUE",
+		"FISH",
+		"ROCK",
+		"WIND",
+	],
+	5: [
+		"APPLE",
+		"BRAIN",
+		"CLOUD",
+		"DANCE",
+		"EARTH",
+		"FLAME",
+		"GHOST",
+		"HEART",
+		"LIGHT",
+		"MUSIC",
+	],
+	6: [
+		"ROCKET",
+		"PLANET",
+		"GARDEN",
+		"SILVER",
+		"WINTER",
+		"ORANGE",
+		"FRIEND",
+		"CASTLE",
+		"BRIDGE",
+		"JUNGLE",
+	],
+	7: [
+		"DIAMOND",
+		"THUNDER",
+		"RAINBOW",
+		"MYSTERY",
+		"CRYSTAL",
+		"JOURNEY",
+		"VOLCANO",
+		"PENGUIN",
+	],
 };
 
 const ROUNDS = 4;
@@ -54,8 +96,7 @@ export default function WordJumble({
 	const [doneCount, setDoneCount] = useState(0);
 
 	useEffect(() => {
-		if (playing && timeLeft <= 0)
-			finish(false, done.current * 15, "Time's up");
+		if (playing && timeLeft <= 0) finish(false, done.current * 15, "Time's up");
 	}, [playing, timeLeft, finish]);
 	useEffect(() => {
 		if (!active && playing) cancel();

@@ -138,7 +138,15 @@ export default function BrickBreak({
 
 			// draw
 			ctx.clearRect(0, 0, W, H);
-			const palette = ["#ff4d6d", "#ff8a1e", "#ffd24d", "#3dffa0", "#00e5ff", "#7c5cff", "#b06bff"];
+			const palette = [
+				"#ff4d6d",
+				"#ff8a1e",
+				"#ffd24d",
+				"#3dffa0",
+				"#00e5ff",
+				"#7c5cff",
+				"#b06bff",
+			];
 			r.bricks.forEach((b, i) => {
 				if (!b.alive) return;
 				ctx.fillStyle = palette[Math.floor(i / COLS) % palette.length];
@@ -169,7 +177,10 @@ export default function BrickBreak({
 		const cv = canvasRef.current;
 		if (!cv || !playing) return;
 		const rect = cv.getBoundingClientRect();
-		run.current.px = Math.min(Math.max((clientX - rect.left) / rect.width, 0.08), 0.92);
+		run.current.px = Math.min(
+			Math.max((clientX - rect.left) / rect.width, 0.08),
+			0.92,
+		);
 	};
 
 	return (

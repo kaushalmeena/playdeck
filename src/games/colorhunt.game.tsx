@@ -31,7 +31,10 @@ type Wave = {
 };
 
 function genWave(level: number): Wave {
-	const colors = shuffle(PALETTE).slice(0, 3 + Math.min(Math.floor(level / 2), 3));
+	const colors = shuffle(PALETTE).slice(
+		0,
+		3 + Math.min(Math.floor(level / 2), 3),
+	);
 	const target = pick(colors);
 	const wantedCount = randInt(3, 5);
 	const tiles = shuffle(
@@ -65,8 +68,7 @@ export default function ColorHunt({
 	const [doneCount, setDoneCount] = useState(0);
 
 	useEffect(() => {
-		if (playing && timeLeft <= 0)
-			finish(false, done.current * 15, "Time's up");
+		if (playing && timeLeft <= 0) finish(false, done.current * 15, "Time's up");
 	}, [playing, timeLeft, finish]);
 	useEffect(() => {
 		if (!active && playing) cancel();
@@ -87,7 +89,9 @@ export default function ColorHunt({
 			finish(false, done.current * 15, "Wrong color");
 			return;
 		}
-		const tiles = wave.tiles.map((x, j) => (j === i ? { ...x, found: true } : x));
+		const tiles = wave.tiles.map((x, j) =>
+			j === i ? { ...x, found: true } : x,
+		);
 		const left = wave.left - 1;
 		if (left <= 0) {
 			done.current += 1;

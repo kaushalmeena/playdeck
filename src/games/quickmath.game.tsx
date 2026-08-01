@@ -23,7 +23,8 @@ function genQ(level: number): Q {
 	let b: number;
 	let correct: number;
 	let text: string;
-	const op = level < 3 ? randInt(0, 1) : level < 6 ? randInt(0, 2) : randInt(1, 2);
+	const op =
+		level < 3 ? randInt(0, 1) : level < 6 ? randInt(0, 2) : randInt(1, 2);
 	if (op === 0) {
 		a = randInt(2, hi);
 		b = randInt(2, hi);
@@ -64,8 +65,7 @@ export default function QuickMath({
 	const done = useRef(0);
 
 	useEffect(() => {
-		if (playing && timeLeft <= 0)
-			finish(false, done.current * 15, "Time's up");
+		if (playing && timeLeft <= 0) finish(false, done.current * 15, "Time's up");
 	}, [playing, timeLeft, finish]);
 	useEffect(() => {
 		if (!active && playing) cancel();

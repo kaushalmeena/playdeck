@@ -94,7 +94,10 @@ export default function FlashCount({
 			instructions={meta.instructions}
 			playing={playing}
 			result={result}
-			chips={[`ROUND ${roundNo}/${ROUNDS}`, phase === "show" ? "WATCH" : "GUESS"]}
+			chips={[
+				`ROUND ${roundNo}/${ROUNDS}`,
+				phase === "show" ? "WATCH" : "GUESS",
+			]}
 			onPlay={start}
 			onQuit={() => {
 				clearAll();

@@ -117,7 +117,10 @@ export default function PathRecall({
 			instructions={meta.instructions}
 			playing={playing}
 			result={result}
-			chips={[`ROUND ${roundNo}/${ROUNDS}`, phase === "show" ? "WATCH" : `${stepsDone}/${len}`]}
+			chips={[
+				`ROUND ${roundNo}/${ROUNDS}`,
+				phase === "show" ? "WATCH" : `${stepsDone}/${len}`,
+			]}
 			onPlay={start}
 			onQuit={() => {
 				clearAll();

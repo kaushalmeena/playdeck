@@ -26,9 +26,7 @@ type Round = { word: string; ink: string; match: boolean };
 function genRound(): Round {
 	const word = pick(COLORS);
 	const match = Math.random() < 0.5;
-	const ink = match
-		? word
-		: pick(COLORS.filter((c) => c.name !== word.name));
+	const ink = match ? word : pick(COLORS.filter((c) => c.name !== word.name));
 	return { word: word.name, ink: ink.hex, match };
 }
 
@@ -48,8 +46,7 @@ export default function ColorClash({
 	const [doneCount, setDoneCount] = useState(0);
 
 	useEffect(() => {
-		if (playing && timeLeft <= 0)
-			finish(false, done.current * 12, "Time's up");
+		if (playing && timeLeft <= 0) finish(false, done.current * 12, "Time's up");
 	}, [playing, timeLeft, finish]);
 	useEffect(() => {
 		if (!active && playing) cancel();

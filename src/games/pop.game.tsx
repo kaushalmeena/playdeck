@@ -15,7 +15,13 @@ export const meta: GameMeta = {
 
 const DURATION = 20;
 
-type Bubble = { id: number; x: number; size: number; dur: number; bomb: boolean };
+type Bubble = {
+	id: number;
+	x: number;
+	size: number;
+	dur: number;
+	bomb: boolean;
+};
 
 export default function BubblePop({
 	level,

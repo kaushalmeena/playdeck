@@ -29,8 +29,7 @@ export default function OddEven({
 	const [doneCount, setDoneCount] = useState(0);
 
 	useEffect(() => {
-		if (playing && timeLeft <= 0)
-			finish(false, done.current * 9, "Time's up");
+		if (playing && timeLeft <= 0) finish(false, done.current * 9, "Time's up");
 	}, [playing, timeLeft, finish]);
 	useEffect(() => {
 		if (!active && playing) cancel();

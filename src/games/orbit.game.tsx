@@ -76,7 +76,8 @@ export default function OrbitDash({
 			if (r.arcs.length > 3 + Math.min(level, 3)) r.arcs.shift();
 
 			// collision
-			const norm = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+			const norm = (a: number) =>
+				((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 			for (const arc of r.arcs) {
 				const rel = norm(r.angle - arc.start);
 				if (rel >= 0 && rel <= arc.span) {

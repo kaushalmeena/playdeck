@@ -83,7 +83,10 @@ export default function DigitRecall({
 			instructions={meta.instructions}
 			playing={playing}
 			result={result}
-			chips={[`ROUND ${round}/${ROUNDS}`, phase === "show" ? "MEMORIZE" : "TYPE"]}
+			chips={[
+				`ROUND ${round}/${ROUNDS}`,
+				phase === "show" ? "MEMORIZE" : "TYPE",
+			]}
 			onPlay={start}
 			onQuit={() => {
 				clearAll();

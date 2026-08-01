@@ -85,7 +85,10 @@ export default function PatternEcho({
 			instructions={meta.instructions}
 			playing={playing}
 			result={result}
-			chips={[`ROUND ${roundNo}/${ROUNDS}`, phase === "show" ? "MEMORIZE" : "REPEAT"]}
+			chips={[
+				`ROUND ${roundNo}/${ROUNDS}`,
+				phase === "show" ? "MEMORIZE" : "REPEAT",
+			]}
 			onPlay={start}
 			onQuit={() => {
 				clearAll();

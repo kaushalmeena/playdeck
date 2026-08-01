@@ -89,7 +89,9 @@ export default function StarCatch({
 			for (const it of r.items) {
 				it.y += speed * dt;
 				const inBasket =
-					it.y > by - 26 && it.y < by + 14 && Math.abs(it.x - bx) < BASKET_W / 2;
+					it.y > by - 26 &&
+					it.y < by + 14 &&
+					Math.abs(it.x - bx) < BASKET_W / 2;
 				if (inBasket) {
 					if (it.bomb) {
 						finish(false, r.caught * 10, "Caught a bomb");
@@ -136,7 +138,10 @@ export default function StarCatch({
 		const cv = canvasRef.current;
 		if (!cv || !playing) return;
 		const rect = cv.getBoundingClientRect();
-		run.current.px = Math.min(Math.max((clientX - rect.left) / rect.width, 0.05), 0.95);
+		run.current.px = Math.min(
+			Math.max((clientX - rect.left) / rect.width, 0.05),
+			0.95,
+		);
 	};
 
 	return (
@@ -148,7 +153,11 @@ export default function StarCatch({
 			instructions={meta.instructions}
 			playing={playing}
 			result={result}
-			chips={[`⭐ ${caught}/${goal}`, `💔 ${missed}/3`, `${Math.ceil(timeLeft)}s`]}
+			chips={[
+				`⭐ ${caught}/${goal}`,
+				`💔 ${missed}/3`,
+				`${Math.ceil(timeLeft)}s`,
+			]}
 			progress={timeLeft / DURATION}
 			onPlay={begin}
 			onQuit={cancel}
