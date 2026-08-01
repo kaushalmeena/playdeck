@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { GameEntry } from "../games/registry";
 
 /** the splash stays up at least this long, so it reads as a screen, not a blink */
-export const MIN_SPLASH_MS = 450;
+export const MIN_SPLASH_MS = 800;
 /** how long the splash lingers on top of the feed while it fades out */
 export const SPLASH_FADE_MS = 260;
 
