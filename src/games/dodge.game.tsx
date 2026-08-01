@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, useCountdown, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Dodge Rush",
@@ -10,7 +10,7 @@ export const meta: GameMeta = {
 	order: 13,
 	accent: "#00e5ff",
 	instructions:
-		"Tap the left or right half of the screen to switch lanes. Dodge the falling blocks for 15 seconds.",
+		"Tap the left or right half of the screen — or use the arrow keys — to switch lanes. Dodge the falling blocks for 15 seconds.",
 };
 
 const DURATION = 15;
@@ -115,6 +115,13 @@ export default function DodgeRush({
 		if (!playing) return;
 		run.current.lane = Math.min(Math.max(run.current.lane + dir, 0), 2);
 	};
+
+	useGameKeys(playing, {
+		ArrowLeft: () => steer(-1),
+		a: () => steer(-1),
+		ArrowRight: () => steer(1),
+		d: () => steer(1),
+	});
 
 	return (
 		<GameChrome
