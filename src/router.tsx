@@ -8,8 +8,6 @@ export function getRouter() {
 		scrollRestoration: false,
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 0,
-		// cross-fade between tabs with the View Transitions API (see styles.css)
-		defaultViewTransition: true,
 	});
 
 	return router;

@@ -39,7 +39,7 @@ export function FeedHeader({
 					e.currentTarget.blur();
 					sfx.press();
 					if (isHome) onLogoRewind();
-					else navigate({ to: "/", viewTransition: true });
+					else navigate({ to: "/" });
 				}}
 				aria-label="Back to the start"
 				className="pointer-events-auto flex shrink-0 items-center gap-2 border-0 bg-transparent p-0 text-base font-black tracking-widest whitespace-nowrap"

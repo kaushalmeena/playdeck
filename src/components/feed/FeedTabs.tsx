@@ -21,7 +21,6 @@ export function FeedTabs({ favoriteCount, dailyComplete }: Props) {
 				<Link
 					key={tab}
 					to={to}
-					viewTransition
 					onClick={() => sfx.press()}
 					activeOptions={{ exact: true }}
 					className="rounded-full px-2 py-1 text-[10px] sm:px-3 sm:text-xs font-bold tracking-wide text-muted transition-colors data-[status=active]:bg-linear-to-r data-[status=active]:from-accent data-[status=active]:to-accent2 data-[status=active]:text-white"
