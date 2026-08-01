@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SITE } from "../../lib/seo";
 import { Logo } from "../Logo";
 
 const MESSAGES = [
@@ -50,6 +51,14 @@ export function FeedLoader() {
 					"radial-gradient(120% 80% at 50% -10%, var(--t-stage) 0%, var(--t-bg) 60%)",
 			}}
 		>
+			{/*
+			 * The prerendered page is this splash, so it carries the page's only
+			 * heading and description — real text for crawlers and screen
+			 * readers, invisible on screen.
+			 */}
+			<h1 className="sr-only">{SITE.name}</h1>
+			<p className="sr-only">{SITE.description}</p>
+
 			<Logo size={72} className="animate-bounce-slow" />
 
 			<div className="text-lg font-black tracking-[0.3em]">
