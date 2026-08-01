@@ -1,7 +1,8 @@
 import clsx from "clsx";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Toaster } from "sonner";
 import type { GameEntry } from "../../games/registry";
+import { useFeedReady } from "../../hooks/useFeedReady";
 import { useInfiniteFeed } from "../../hooks/useInfiniteFeed";
 import { useRunRecorder } from "../../hooks/useRunRecorder";
 import { useShuffledGames } from "../../hooks/useShuffledGames";
@@ -60,24 +61,7 @@ export function GameFeed({
 		[tab, shuffled, daily, player, rank, openCount],
 	);
 
-	// Hold the splash until the deck has been shuffled and the first card's
-	// chunk has arrived, so the feed never opens on an empty placeholder.
-	const firstId = list[0]?.id;
-	const [chunkFor, setChunkFor] = useState<string | null>(null);
-	useEffect(() => {
-		if (!settled) return;
-		const first = list[0];
-		if (!first) return;
-		let alive = true;
-		first.load().finally(() => {
-			if (alive) setChunkFor(first.id);
-		});
-		return () => {
-			alive = false;
-		};
-	}, [settled, list]);
-
-	const ready = settled && (!firstId || chunkFor === firstId);
+	const { ready, splashUp } = useFeedReady({ settled, first: list[0] });
 
 	const feed = useInfiniteFeed({
 		length: list.length,
@@ -94,6 +78,13 @@ export function GameFeed({
 
 	return (
 		<div className="relative h-full w-full bg-bg">
+			{/* the splash lingers for one fade so the reveal has no gap in it */}
+			{splashUp && (
+				<div className="animate-fade-out pointer-events-none absolute inset-0 z-50">
+					<FeedLoader />
+				</div>
+			)}
+
 			<Toaster position="top-center" theme={theme} offset={60} />
 
 			<FeedHeader

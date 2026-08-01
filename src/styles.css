@@ -149,6 +149,19 @@ a:active {
 	}
 }
 
+/* loading splash — fades off the top of the feed so the reveal is seamless */
+@keyframes fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+.animate-fade-out {
+	animation: fade-out 0.26s ease-in forwards;
+}
+
 /* loading splash */
 @keyframes slide {
 	0% {
