@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Star Catch",
@@ -94,9 +94,11 @@ export default function StarCatch({
 					Math.abs(it.x - bx) < BASKET_W / 2;
 				if (inBasket) {
 					if (it.bomb) {
+						sfx.boom();
 						finish(false, r.caught * 10, "Caught a bomb");
 						return;
 					}
+					sfx.collect();
 					r.caught += 1;
 					setCaught(r.caught);
 					if (r.caught >= goal) {
@@ -107,6 +109,7 @@ export default function StarCatch({
 				}
 				if (it.y > H + 30) {
 					if (!it.bomb) {
+						sfx.bad();
 						r.missed += 1;
 						setMissed(r.missed);
 						if (r.missed >= 3) {

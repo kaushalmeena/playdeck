@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { pick, useCountdown, useRun } from "./kit";
+import { pick, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Color Clash",
@@ -65,6 +65,7 @@ export default function ColorClash({
 			finish(false, done.current * 12, "Fooled you");
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		setDoneCount(done.current);
 		if (done.current >= rounds) {

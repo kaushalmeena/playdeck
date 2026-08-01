@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, shuffle, useCountdown, useRun } from "./kit";
+import { randInt, sfx, shuffle, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Quick Math",
@@ -84,6 +84,7 @@ export default function QuickMath({
 			finish(false, done.current * 15, "Wrong answer");
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		if (done.current >= ROUNDS) {
 			finish(true, ROUNDS * 15 + Math.ceil(timeLeft) * 2);

@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { shuffle, useCountdown, useRun } from "./kit";
+import { sfx, shuffle, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Number Order",
@@ -54,6 +54,7 @@ export default function NumberOrder({
 			finish(true, count * 10 + Math.ceil(timeLeft) * 3);
 			return;
 		}
+		sfx.step();
 		nextRef.current += 1;
 		setNext(nextRef.current);
 	};
@@ -84,7 +85,7 @@ export default function NumberOrder({
 								"aspect-square rounded-xl border text-xl font-extrabold transition-opacity",
 								n < next
 									? "border-good bg-good/10 text-good opacity-40"
-									: "border-line bg-card",
+									: "border-line",
 							)}
 						>
 							{n}

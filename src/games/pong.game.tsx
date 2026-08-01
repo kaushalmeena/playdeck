@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Keep Up",
@@ -84,6 +84,7 @@ export default function KeepUp({
 				r.vy = -Math.abs(r.vy) * 1.035;
 				const off = (r.bx - padX) / (PADDLE_W / 2);
 				r.vx = off * Math.abs(r.vy) * 0.85;
+				sfx.bounce();
 				r.bounces += 1;
 				setBounces(r.bounces);
 				if (r.bounces >= goal) {

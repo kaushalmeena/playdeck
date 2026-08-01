@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Mind Match",
@@ -90,12 +90,14 @@ export default function MindMatch({
 			setTiles((ts) =>
 				ts.map((t) => (open.includes(t.key) ? { ...t, state: "done" } : t)),
 			);
+			sfx.good();
 			matchedRef.current += 1;
 			setMatched(matchedRef.current);
 			if (matchedRef.current >= pairs) {
 				finish(true, pairs * 20 + Math.ceil(timeLeft) * 2);
 			}
 		} else {
+			sfx.bad();
 			lock.current = true;
 			flipBack.current = setTimeout(() => {
 				setTiles((ts) =>

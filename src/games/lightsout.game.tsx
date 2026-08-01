@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Lights Out",
@@ -71,6 +71,7 @@ export default function LightsOut({
 
 	const tap = (i: number) => {
 		if (!playing) return;
+		sfx.step();
 		const next = toggleCross(board, i);
 		const used = moves + 1;
 		setBoard(next);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useRun, useTimers } from "./kit";
+import { randInt, sfx, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Quick Shot",
@@ -56,6 +56,7 @@ export default function QuickShot({
 	const hit = () => {
 		if (!playing) return;
 		clearAll();
+		sfx.hit();
 		hitsRef.current += 1;
 		setHits(hitsRef.current);
 		if (hitsRef.current >= goal) {

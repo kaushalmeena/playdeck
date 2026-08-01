@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useCountdown, useRun } from "./kit";
+import { sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Orbit Dash",
@@ -135,7 +135,9 @@ export default function OrbitDash({
 				type="button"
 				aria-label="Reverse direction"
 				onPointerDown={() => {
-					if (playing) run.current.dir *= -1;
+					if (!playing) return;
+					sfx.step();
+					run.current.dir *= -1;
 				}}
 				className="block h-full w-full touch-none border-0 bg-transparent p-0"
 			>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Sky Stack",
@@ -109,6 +109,7 @@ export default function SkyStack({
 			finish(false, (r.stack.length - 1) * 12, "Missed the stack");
 			return;
 		}
+		sfx.hit();
 		r.stack.push({ x: left, w: overlap });
 		r.curW = overlap;
 		const built = r.stack.length - 1;

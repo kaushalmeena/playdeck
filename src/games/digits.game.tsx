@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useRun, useTimers } from "./kit";
+import { randInt, sfx, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Digit Recall",
@@ -58,6 +58,7 @@ export default function DigitRecall({
 
 	const press = (k: string) => {
 		if (!playing || phase !== "input") return;
+		sfx.step();
 		const next = entered + k;
 		if (code[next.length - 1] !== k) {
 			finish(false, (roundRef.current - 1) * len * 8, "Wrong digit");

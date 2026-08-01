@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useGameKeys, useRun } from "./kit";
+import { sfx, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Glow Flap",
@@ -69,7 +69,9 @@ export default function GlowFlap({
 	};
 
 	const flap = () => {
-		if (playing) run.current.vel = -7.4;
+		if (!playing) return;
+		sfx.flap();
+		run.current.vel = -7.4;
 	};
 
 	// physics + render loop
@@ -99,6 +101,7 @@ export default function GlowFlap({
 			for (const g of r.gates) {
 				const hw = 30;
 				if (!g.passed && g.x + hw < sx) {
+					sfx.step();
 					g.passed = true;
 					r.passed += 1;
 					setPassed(r.passed);

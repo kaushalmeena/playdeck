@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Bubble Pop",
@@ -82,10 +82,12 @@ export default function BubblePop({
 	const popBubble = (b: Bubble) => {
 		if (!playing) return;
 		if (b.bomb) {
+			sfx.boom();
 			finish(false, popsRef.current * 8, "Boom");
 			return;
 		}
 		setBubbles((bs) => bs.filter((x) => x.id !== b.id));
+		sfx.pop();
 		popsRef.current += 1;
 		setPops(popsRef.current);
 		if (popsRef.current >= goal) {

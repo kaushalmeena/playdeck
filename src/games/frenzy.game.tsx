@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useCountdown, useRun } from "./kit";
+import { sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Tap Frenzy",
@@ -43,6 +43,7 @@ export default function TapFrenzy({
 
 	const tap = () => {
 		if (!playing) return;
+		sfx.step();
 		tapsRef.current += 1;
 		setTaps(tapsRef.current);
 		if (tapsRef.current >= goal) {

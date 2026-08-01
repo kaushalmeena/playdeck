@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Zap Bot",
@@ -102,9 +102,11 @@ export default function ZapBot({
 			setCells(
 				EMPTY.map((c, j) => (j === i ? { icon: "💥", flash: "boom" } : c)),
 			);
+			sfx.boom();
 			finish(false, r.hits * 10, "Boom");
 			return;
 		}
+		sfx.hit();
 		r.hits += 1;
 		setHits(r.hits);
 		setCells(EMPTY.map((c, j) => (j === i ? { icon: "💥", flash: "hit" } : c)));

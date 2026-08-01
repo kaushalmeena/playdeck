@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, shuffle, useRun, useTimers } from "./kit";
+import { randInt, sfx, shuffle, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Flash Count",
@@ -76,6 +76,7 @@ export default function FlashCount({
 			finish(false, done.current * 15, `It was ${round.count}`);
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		if (done.current >= ROUNDS) {
 			finish(true, ROUNDS * 15 + 20);

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useGameKeys, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Dodge Rush",
@@ -113,6 +113,7 @@ export default function DodgeRush({
 
 	const steer = (dir: number) => {
 		if (!playing) return;
+		sfx.step();
 		run.current.lane = Math.min(Math.max(run.current.lane + dir, 0), 2);
 	};
 

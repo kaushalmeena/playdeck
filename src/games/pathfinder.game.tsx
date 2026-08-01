@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useRun, useTimers } from "./kit";
+import { randInt, sfx, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Path Recall",
@@ -93,6 +93,7 @@ export default function PathRecall({
 			finish(false, done.current * len * 7, "Wrong step");
 			return;
 		}
+		sfx.step();
 		pos.current += 1;
 		setStepsDone(pos.current);
 		if (pos.current >= path.current.length) {

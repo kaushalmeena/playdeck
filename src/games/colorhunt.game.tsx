@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { pick, randInt, shuffle, useCountdown, useRun } from "./kit";
+import { pick, randInt, sfx, shuffle, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Color Hunt",
@@ -95,6 +95,7 @@ export default function ColorHunt({
 		);
 		const left = wave.left - 1;
 		if (left <= 0) {
+			sfx.good();
 			done.current += 1;
 			setDoneCount(done.current);
 			if (done.current >= waves) {

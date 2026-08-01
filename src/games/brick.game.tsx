@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Brick Break",
@@ -125,6 +125,7 @@ export default function BrickBreak({
 					r.by < b.y + BH + 8
 				) {
 					b.alive = false;
+					sfx.hit();
 					r.destroyed += 1;
 					setLeft(rows * COLS - r.destroyed);
 					r.vy = -r.vy;

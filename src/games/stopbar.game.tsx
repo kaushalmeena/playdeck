@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useRun } from "./kit";
+import { randInt, sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Perfect Stop",
@@ -74,6 +74,7 @@ export default function PerfectStop({
 			finish(false, r.score, "Missed the zone");
 			return;
 		}
+		sfx.good();
 		r.score += 15 + Math.round((1 - err / (zoneW / 2)) * 10);
 		setScore(r.score);
 		if (r.round >= rounds) {

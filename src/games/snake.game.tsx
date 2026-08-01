@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useGameKeys, useRun } from "./kit";
+import { sfx, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Neon Snake",
@@ -149,6 +149,7 @@ export default function NeonSnake({
 				}
 				r.snake.unshift(head);
 				if (head.x === r.food.x && head.y === r.food.y) {
+					sfx.collect();
 					r.eaten += 1;
 					setEaten(r.eaten);
 					if (r.eaten >= goal) {

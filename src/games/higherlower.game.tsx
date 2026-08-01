@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Higher Lower",
@@ -54,6 +54,7 @@ export default function HigherLower({
 			finish(false, streakRef.current * 12, `It was ${next}`);
 			return;
 		}
+		sfx.good();
 		streakRef.current += 1;
 		setStreak(streakRef.current);
 		if (streakRef.current >= goal) {

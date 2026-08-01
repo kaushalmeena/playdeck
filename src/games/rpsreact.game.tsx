@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useRun, useTimers } from "./kit";
+import { randInt, sfx, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "RPS React",
@@ -65,6 +65,7 @@ export default function RpsReact({
 			finish(false, done.current * 14, "Wrong hand");
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		if (done.current >= rounds) {
 			finish(true, rounds * 14 + 20);

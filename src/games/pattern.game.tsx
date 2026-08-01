@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { shuffle, useRun, useTimers } from "./kit";
+import { sfx, shuffle, useRun, useTimers } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Pattern Echo",
@@ -65,6 +65,7 @@ export default function PatternEcho({
 		nextFound.add(i);
 		setFound(nextFound);
 		if (nextFound.size >= litSet.size) {
+			sfx.good();
 			done.current += 1;
 			if (done.current >= ROUNDS) {
 				finish(true, ROUNDS * k * 6 + 15);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { pick, shuffle, useCountdown, useRun } from "./kit";
+import { pick, sfx, shuffle, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Word Jumble",
@@ -115,6 +115,7 @@ export default function WordJumble({
 			finish(false, done.current * 15, `It was ${round.word}`);
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		setDoneCount(done.current);
 		if (done.current >= ROUNDS) {

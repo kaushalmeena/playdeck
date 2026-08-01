@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useGameKeys, useRun } from "./kit";
+import { randInt, sfx, useGameKeys, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Tile Merge",
@@ -134,6 +134,7 @@ export default function TileMerge({
 			const { board: slid, gained, moved } = move(current, dir);
 			if (!moved) return current;
 
+			if (gained) sfx.merge(Math.max(...slid));
 			scoreRef.current += gained;
 			setScore(scoreRef.current);
 

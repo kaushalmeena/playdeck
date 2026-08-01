@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { randInt, useCountdown, useRun } from "./kit";
+import { randInt, sfx, useCountdown, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Odd One Out",
@@ -60,6 +60,7 @@ export default function OddOneOut({
 			finish(false, done.current * 15, "Wrong tile");
 			return;
 		}
+		sfx.good();
 		done.current += 1;
 		setDoneCount(done.current);
 		if (done.current >= rounds) {

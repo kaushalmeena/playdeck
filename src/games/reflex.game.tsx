@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
-import { useRun } from "./kit";
+import { sfx, useRun } from "./kit";
 
 export const meta: GameMeta = {
 	title: "Reflex Rush",
@@ -93,6 +93,7 @@ export default function ReflexRush({
 		if (r.state === "go") {
 			clearTimers();
 			const rt = performance.now() - r.t0;
+			sfx.good();
 			r.score += Math.max(5, Math.round((windowMs - rt) / 10) + 10);
 			setScore(r.score);
 			setState("idle", `${Math.round(rt)}ms`);
