@@ -148,18 +148,6 @@ as their base. Building locally without it keeps everything at `/`.
 One-time setup: in the repository's **Settings → Pages**, set **Source** to
 **GitHub Actions**.
 
-## Roadmap
-
-- [x] 32 games, per-game levels and combo scoring
-- [x] Daily challenge with streaks and a shareable card
-- [x] Installable PWA with offline support
-- [ ] Global leaderboards backed by server routes
-- [ ] Ghost replays — race your own best run
-- [ ] Achievements and profile stats
-
-See the [open issues](https://github.com/kaushalmeena/playdeck/issues) for
-a full list of proposed features and known issues.
-
 ## Documentation
 
 Full documentation is available in the [`/docs`](./docs) directory.
