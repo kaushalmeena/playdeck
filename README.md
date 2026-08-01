@@ -14,17 +14,22 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-Other scripts: `npm run build`, `npm run check` (Biome lint + format).
+Other scripts: `npm run build`, `npm run check` (Biome lint + format),
+`npm test` (Vitest).
 
 ## The feed
 
-- **32 games**, one per card, in an infinite snap-scroll loop — wheel
-  (one card per gesture), swipe, `↑/↓`, `Space` (next), or the ▲▼
-  buttons. The logo brings you back to the start.
-- **Tabs** — `All`, `You` (ordered by what you actually play), `♥`
-  favorites, and `📅` the daily challenge.
-- While a run is live the feed locks (games own the input) and a ✕
-  button quits the run.
+- **32 games** in a randomised, infinite snap-scroll loop — wheel (one
+  card per flick), swipe, `↑/↓`, `Space` (next), or the ▲▼ buttons. The
+  logo rewinds to the top.
+- **Tabs are routes** — `/` all, `/you` (ordered by what you play),
+  `/favorites`, `/daily` — cross-faded with the View Transitions API.
+- The deck is **reshuffled every visit**. Unlocking still follows each
+  game's canonical position, so a shuffle never changes what's available.
+- While a run is live the feed locks and a ✕ button quits the run.
+  Games claim their keys in the capture phase
+  ([`useGameKeys`](src/games/kit.ts)), so arrows/space always reach the
+  game rather than paging the feed.
 
 ## Progression
 
@@ -43,6 +48,27 @@ Other scripts: `npm run build`, `npm run check` (Biome lint + format).
 - Level-ups get confetti (canvas-confetti), WebAudio sfx and haptics;
   toasts via sonner. Everything persists in `localStorage`
   ([storage.ts](src/lib/storage.ts)).
+
+## Layout
+
+```
+src/
+  routes/          one file per feed tab (view-transitioned)
+  components/
+    feed/          GameFeed · FeedHeader · FeedTabs · FeedStats
+                   GameCard · CardRail · CardStates · NavArrows …
+    game/          GameChrome · GameOverlay · GameTopBar · Chip
+  hooks/           useInfiniteFeed · useRunRecorder · useShuffledGames
+  lib/
+    feed/          wheel · loop · ordering · progression   (pure)
+    daily · storage · sfx · share · celebrate · theme
+  games/           *.game.tsx — one self-contained game each
+```
+
+The scroll engine, scoring rules and ordering live in pure modules with
+no React or DOM, so they're unit-tested directly
+(`src/**/__tests__`, 48 tests). Components stay presentational and the
+hooks hold the behaviour.
 
 ## Games are independent units
 

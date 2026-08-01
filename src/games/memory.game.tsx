@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GameChrome } from "../components/GameChrome";
+import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { useRun } from "./kit";
 
