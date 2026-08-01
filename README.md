@@ -34,6 +34,8 @@ beat it, so the feed gets harder the longer you stay.
   unlocking stays tied to each game's fixed rank.
 - **Games are single files** — one `*.game.tsx` per game, auto-discovered and
   lazy-loaded; add or delete a file and the feed follows.
+- **Sound and haptics** — synthesized cues for every interaction and in-game
+  action, with one toggle to mute the lot; nothing to download.
 - **Installable and offline** — a PWA with a service worker, light and dark
   themes, and all progress kept locally in the browser.
 

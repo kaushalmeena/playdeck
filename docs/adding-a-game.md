@@ -129,7 +129,31 @@ From [`src/games/kit.ts`](../src/games/kit.ts):
 | `useCountdown(playing, secs)` | A timer that restarts with each run; watch for `0`           |
 | `useTimers()`                 | `setTimeout`s that clear themselves on unmount               |
 | `useGameKeys(active, map)`    | Keyboard controls that beat the feed's paging                |
+| `sfx`                         | Sound cues for your game's actions                           |
 | `randInt` `shuffle` `pick`    | Small random helpers                                         |
+
+### Sound
+
+Call `sfx` from the kit when something happens. Starting, quitting, winning
+and losing already make noise through the chrome and the scorer — what a game
+adds is feedback for its own actions:
+
+```tsx
+sfx.good();        // a right answer, a matched pair, a cleared wave
+sfx.bad();         // a fumble that does not end the run
+sfx.step();        // a light move: tile flip, lane change, grid step
+sfx.collect();     // picking something up
+sfx.hit();         // landing a hit
+sfx.pop();         // a bubble popping
+sfx.boom();        // an explosion
+sfx.bounce();      // ball or paddle
+sfx.flap();        // thrust or jump
+sfx.merge(value);  // tiles combining — pitch rises with the value
+```
+
+Every sound is synthesized, so there is nothing to download, and all of them
+respect the player's mute toggle. Prefer `step()` for anything that fires many
+times a second — a chime on every tap gets tiring fast.
 
 ### Keyboard games
 
