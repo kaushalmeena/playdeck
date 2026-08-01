@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/*
+ * Semantic theme tokens. The raw values live on :root (dark, the default)
+ * and :root.light — utilities like bg-bg / text-muted / border-line flip
+ * automatically with the theme.
+ */
+@theme inline {
+	--color-bg: var(--t-bg);
+	--color-surface: var(--t-surface);
+	--color-card: var(--t-card);
+	--color-line: var(--t-line);
+	--color-text: var(--t-text);
+	--color-muted: var(--t-muted);
+	--color-accent: var(--t-accent);
+	--color-accent2: var(--t-accent2);
+	--color-danger: var(--t-danger);
+	--color-good: var(--t-good);
+}
+
+:root {
+	--t-bg: #0b0b14;
+	--t-surface: #14141f;
+	--t-card: #181826;
+	--t-line: #26263a;
+	--t-text: #eaeaf2;
+	--t-muted: #8b8ba3;
+	--t-accent: #7c5cff;
+	--t-accent2: #00e5ff;
+	--t-danger: #ff4d6d;
+	--t-good: #3dffa0;
+	/* radial glow at the top of every game stage */
+	--t-stage: #181830;
+}
+
+:root.light {
+	--t-bg: #eef0f9;
+	--t-surface: #f7f8fd;
+	--t-card: #ffffff;
+	--t-line: #d9dcee;
+	--t-text: #191932;
+	--t-muted: #5f6180;
+	--t-accent: #6a48f0;
+	--t-accent2: #0093b8;
+	--t-danger: #d92646;
+	--t-good: #0f9d58;
+	--t-stage: #ffffff;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+	height: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--t-bg);
+	color: var(--t-text);
+	overflow: hidden;
+	font-family: ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto,
+		sans-serif;
+	-webkit-tap-highlight-color: transparent;
+	transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* hide scrollbar on the feed but keep it scrollable */
+.no-scrollbar {
+	scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translate(-50%, -12px) scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, 0) scale(1);
+	}
+}
+.toast-in {
+	animation: toast-in 0.25s ease-out;
+}
