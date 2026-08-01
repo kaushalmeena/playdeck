@@ -1,11 +1,11 @@
-import { memo, Suspense } from "react";
+import { memo, useEffect, useState } from "react";
 import type { GameEntry } from "../../games/registry";
 import { CardRail } from "./CardRail";
 import { CardPlaceholder, LockedCard } from "./CardStates";
 
 export type GameCardProps = {
 	game: GameEntry;
-	/** mount the lazy game component (the card is on or next to the screen) */
+	/** load the game's component (the card is on or next to the screen) */
 	mounted: boolean;
 	/** this is the card currently filling the screen */
 	active: boolean;
@@ -34,6 +34,21 @@ function GameCardImpl({
 	onEnd,
 	onPlayingChange,
 }: GameCardProps) {
+	// An already-downloaded game renders on the very first frame, so a card the
+	// feed preloaded never flashes its placeholder.
+	const [Game, setGame] = useState(() => game.loaded());
+
+	useEffect(() => {
+		if (!mounted || Game) return;
+		let alive = true;
+		game.load().then((Component) => {
+			if (alive) setGame(() => Component);
+		});
+		return () => {
+			alive = false;
+		};
+	}, [mounted, game, Game]);
+
 	return (
 		<section
 			className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden"
@@ -41,15 +56,13 @@ function GameCardImpl({
 		>
 			{locked ? (
 				<LockedCard game={game} unlockAt={unlockAt} />
-			) : mounted ? (
-				<Suspense fallback={<CardPlaceholder game={game} />}>
-					<game.Component
-						level={level}
-						active={active}
-						onEnd={onEnd}
-						onPlayingChange={onPlayingChange}
-					/>
-				</Suspense>
+			) : mounted && Game ? (
+				<Game
+					level={level}
+					active={active}
+					onEnd={onEnd}
+					onPlayingChange={onPlayingChange}
+				/>
 			) : (
 				<CardPlaceholder game={game} />
 			)}

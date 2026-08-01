@@ -1,12 +1,39 @@
 import type { GameEntry } from "../../games/registry";
 
-/** shown while a card's lazy chunk is still loading, or when it's off-screen */
+const STAGE =
+	"radial-gradient(120% 80% at 50% -10%, var(--t-stage) 0%, var(--t-bg) 60%)";
+
+/**
+ * Shown while a card's chunk is still downloading, or when it is off-screen.
+ *
+ * Dressed to match the splash and the game overlay, because a bare emoji on a
+ * flat background reads as broken styling rather than as loading.
+ */
 export function CardPlaceholder({ game }: { game: GameEntry }) {
 	return (
-		<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg">
-			<div className="text-6xl opacity-40">{game.emoji}</div>
-			<div className="text-sm tracking-widest text-muted">
+		<div
+			className="absolute inset-0 flex flex-col items-center justify-center gap-4"
+			style={{ background: STAGE }}
+		>
+			<div
+				className="animate-bounce-slow text-7xl"
+				style={
+					game.accent
+						? { filter: `drop-shadow(0 0 26px ${game.accent})` }
+						: undefined
+				}
+			>
+				{game.emoji}
+			</div>
+			<div className="text-sm font-black tracking-[0.3em] text-muted">
 				{game.title.toUpperCase()}
+			</div>
+			<div
+				className="h-1 w-28 overflow-hidden rounded-full bg-line"
+				role="progressbar"
+				aria-label={`Loading ${game.title}`}
+			>
+				<div className="animate-slide h-full w-1/3 rounded-full bg-linear-to-r from-accent to-accent2" />
 			</div>
 		</div>
 	);
@@ -21,7 +48,10 @@ export function LockedCard({
 	unlockAt: number;
 }) {
 	return (
-		<div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg">
+		<div
+			className="absolute inset-0 flex flex-col items-center justify-center gap-4"
+			style={{ background: STAGE }}
+		>
 			<div className="text-7xl opacity-30 grayscale">{game.emoji}</div>
 			<div className="text-5xl">🔒</div>
 			<div className="text-sm font-bold tracking-widest text-muted">

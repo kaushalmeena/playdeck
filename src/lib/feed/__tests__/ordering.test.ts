@@ -3,16 +3,18 @@ import type { GameEntry } from "../../../games/registry";
 import type { PlayerState } from "../../storage";
 import { forYouWeight, seededShuffle, selectList } from "../ordering";
 
-const game = (id: string, order: number): GameEntry =>
-	({
-		id,
-		order,
-		title: id,
-		emoji: "🎮",
-		desc: "",
-		instructions: "",
-		Component: (() => null) as unknown as GameEntry["Component"],
-	}) as GameEntry;
+const noop = () => null;
+
+const game = (id: string, order: number): GameEntry => ({
+	id,
+	order,
+	title: id,
+	emoji: "🎮",
+	desc: "",
+	instructions: "",
+	load: async () => noop,
+	loaded: () => noop,
+});
 
 const GAMES = ["a", "b", "c", "d", "e"].map((id, i) => game(id, i));
 
