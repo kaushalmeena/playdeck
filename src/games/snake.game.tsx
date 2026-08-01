@@ -63,18 +63,7 @@ export default function NeonSnake({
 		if (!cv || !ctx) return;
 		const r = run.current;
 		ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
-		// board — a touch darker than the stage in both themes
-		const light = document.documentElement.classList.contains("light");
-		ctx.fillStyle = light ? "rgba(25,25,50,.08)" : "rgba(24,24,38,.5)";
-		ctx.beginPath();
-		ctx.roundRect(
-			r.ox - 4,
-			r.oy - 4,
-			r.cols * r.cell + 8,
-			r.rows * r.cell + 8,
-			12,
-		);
-		ctx.fill();
+		// no board plate — the snake and orb sit straight on the stage
 		// food
 		ctx.save();
 		ctx.shadowColor = "#3dffa0";
