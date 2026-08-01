@@ -105,7 +105,7 @@ export default function OrbitDash({
 			ctx.save();
 			ctx.shadowColor = "#b06bff";
 			ctx.shadowBlur = 20;
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.arc(cx + Math.cos(r.angle) * R, cy + Math.sin(r.angle) * R, 11, 0, 7);
 			ctx.fill();
@@ -115,7 +115,7 @@ export default function OrbitDash({
 		};
 		raf = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(raf);
-	}, [playing, level, finish]);
+	}, [playing, level, finish, ink]);
 
 	return (
 		<GameChrome

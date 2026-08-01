@@ -151,7 +151,7 @@ export default function GlowFlap({
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 22;
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.arc(sx, r.y, 11, 0, 7);
 			ctx.fill();
@@ -161,7 +161,7 @@ export default function GlowFlap({
 		};
 		raf = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(raf);
-	}, [playing, gap, speed, goal, finish, size]);
+	}, [playing, gap, speed, goal, finish, size, ink]);
 
 	// cancel when scrolled away
 	useEffect(() => {

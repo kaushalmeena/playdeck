@@ -156,14 +156,14 @@ export default function BrickBreak({
 				ctx.roundRect(b.x, b.y, BW, BH, 5);
 				ctx.fill();
 			});
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.roundRect(padX - PADDLE_W / 2, padY, PADDLE_W, 12, 6);
 			ctx.fill();
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 16;
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.arc(r.bx, r.by, 8, 0, 7);
 			ctx.fill();
@@ -173,7 +173,7 @@ export default function BrickBreak({
 		};
 		raf = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(raf);
-	}, [playing, level, rows, finish]);
+	}, [playing, level, rows, finish, ink]);
 
 	const move = (clientX: number) => {
 		const cv = canvasRef.current;

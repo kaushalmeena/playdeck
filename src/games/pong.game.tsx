@@ -100,14 +100,14 @@ export default function KeepUp({
 
 			// draw
 			ctx.clearRect(0, 0, W, H);
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.roundRect(padX - PADDLE_W / 2, padY, PADDLE_W, 13, 7);
 			ctx.fill();
 			ctx.save();
 			ctx.shadowColor = "#4d9fff";
 			ctx.shadowBlur = 18;
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.arc(r.bx, r.by, 10, 0, 7);
 			ctx.fill();
@@ -117,7 +117,7 @@ export default function KeepUp({
 		};
 		raf = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(raf);
-	}, [playing, level, goal, finish]);
+	}, [playing, level, goal, finish, ink]);
 
 	const move = (clientX: number) => {
 		const cv = canvasRef.current;

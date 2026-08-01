@@ -107,7 +107,7 @@ export default function DodgeRush({
 			ctx.save();
 			ctx.shadowColor = "#00e5ff";
 			ctx.shadowBlur = 20;
-			ctx.fillStyle = ink.current;
+			ctx.fillStyle = ink();
 			ctx.beginPath();
 			ctx.arc(laneX(r.lane), py, 16, 0, 7);
 			ctx.fill();
@@ -117,7 +117,7 @@ export default function DodgeRush({
 		};
 		raf = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(raf);
-	}, [playing, level, finish]);
+	}, [playing, level, finish, ink]);
 
 	const steer = (dir: number) => {
 		if (!playing) return;

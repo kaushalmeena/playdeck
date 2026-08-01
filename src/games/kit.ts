@@ -144,19 +144,21 @@ export function themeColor(token: string, fallback = "#eaeaf2"): string {
 /**
  * A theme colour that stays current, for canvas games.
  *
- * Read `.current` inside your draw loop: the value is cached, so there is no
- * per-frame style read, and it is refreshed when the player flips the theme —
- * without changing any hook dependency, which would restart the game loop.
+ * Returns a stable getter — call it inside your draw loop. The value is cached
+ * behind it, so there is no per-frame style read, and it refreshes when the
+ * player flips the theme without the getter's identity changing, which would
+ * otherwise restart the game loop.
  */
-export function useThemeColor(token: string, fallback?: string) {
-	const ref = useRef(themeColor(token, fallback));
+export function useThemeColor(token: string, fallback?: string): () => string {
+	const value = useRef(themeColor(token, fallback));
 	const { theme } = useTheme();
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `theme` is the trigger, not an input — the CSS variables this reads are what change with it
 	useEffect(() => {
-		ref.current = themeColor(token, fallback);
+		value.current = themeColor(token, fallback);
 	}, [theme, token, fallback]);
 
-	return ref;
+	return useCallback(() => value.current, []);
 }
 
 export const randInt = (min: number, max: number): number =>

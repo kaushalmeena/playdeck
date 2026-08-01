@@ -64,7 +64,7 @@ export default function NeonSnake({
 		if (!cv || !ctx) return;
 		const r = run.current;
 		// one cached read per frame, never per segment
-		const head = ink.current;
+		const head = ink();
 		ctx.clearRect(0, 0, cv.clientWidth, cv.clientHeight);
 		// no board plate — the snake and orb sit straight on the stage
 		// food
@@ -99,7 +99,7 @@ export default function NeonSnake({
 			);
 			ctx.fill();
 		});
-	}, []);
+	}, [ink]);
 
 	const placeFood = useCallback(() => {
 		const r = run.current;
