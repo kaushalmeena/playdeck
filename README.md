@@ -12,6 +12,8 @@ A shorts-style feed of 32 bite-sized games. Swipe down, play a thirty-second
 run, and keep going — every game tracks **its own level** that climbs as you
 beat it, so the feed gets harder the longer you stay.
 
+[**Try it live**](https://kaushalmeena.github.io/game-shorts/)
+
 </div>
 
 ---
@@ -86,11 +88,11 @@ To install and run this project you need:
 
 To set up everything on your local machine, follow these steps:
 
-1. Clone this repo and then change directory to the `give-me-task` folder:
+1. Clone this repo and then change directory to the `game-shorts` folder:
 
 ```bash
-git clone https://github.com/kaushalmeena/give-me-task.git
-cd give-me-task
+git clone https://github.com/kaushalmeena/game-shorts.git
+cd game-shorts
 ```
 
 2. Install project dependencies using npm:
@@ -131,7 +133,20 @@ To create a production build:
 npm run build
 ```
 
-The build output is written to the `dist` folder.
+Every route is prerendered to static HTML, so the build needs no server. The
+output is written to `dist`, and the deployable site is `dist/client`.
+
+## Deployment
+
+Every push to `main` is checked, tested, built and deployed to GitHub Pages by
+the [deploy workflow](.github/workflows/deploy.yml).
+
+Because a project site is served from `/<repo>/`, the workflow builds with
+`BASE_PATH` set from the repository name, and Vite and the router pick that up
+as their base. Building locally without it keeps everything at `/`.
+
+One-time setup: in the repository's **Settings → Pages**, set **Source** to
+**GitHub Actions**.
 
 ## Roadmap
 
@@ -142,7 +157,7 @@ The build output is written to the `dist` folder.
 - [ ] Ghost replays — race your own best run
 - [ ] Achievements and profile stats
 
-See the [open issues](https://github.com/kaushalmeena/give-me-task/issues) for
+See the [open issues](https://github.com/kaushalmeena/game-shorts/issues) for
 a full list of proposed features and known issues.
 
 ## Documentation
@@ -164,7 +179,7 @@ Full documentation is available in the [`/docs`](./docs) directory.
 ## Contributing
 
 Contributions are welcome! If you find a bug or have a feature request, please
-[open an issue](https://github.com/kaushalmeena/give-me-task/issues/new/choose)
+[open an issue](https://github.com/kaushalmeena/game-shorts/issues/new/choose)
 first to discuss it. For code changes, fork the repository, create a branch,
 and open a pull request.
 
