@@ -9,104 +9,133 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as DailyRouteImport } from './routes/daily'
-import { Route as FavoritesRouteImport } from './routes/favorites'
-import { Route as YouRouteImport } from './routes/you'
+import { Route as FeedRouteImport } from './routes/_feed'
+import { Route as FeedIndexRouteImport } from './routes/_feed.index'
+import { Route as FeedDailyRouteImport } from './routes/_feed.daily'
+import { Route as FeedFavoritesRouteImport } from './routes/_feed.favorites'
+import { Route as FeedYouRouteImport } from './routes/_feed.you'
 
-const IndexRoute = IndexRouteImport.update({
+const FeedRoute = FeedRouteImport.update({
+  id: '/_feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedIndexRoute = FeedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => FeedRoute,
 } as any)
-const DailyRoute = DailyRouteImport.update({
+const FeedDailyRoute = FeedDailyRouteImport.update({
   id: '/daily',
   path: '/daily',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => FeedRoute,
 } as any)
-const FavoritesRoute = FavoritesRouteImport.update({
+const FeedFavoritesRoute = FeedFavoritesRouteImport.update({
   id: '/favorites',
   path: '/favorites',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => FeedRoute,
 } as any)
-const YouRoute = YouRouteImport.update({
+const FeedYouRoute = FeedYouRouteImport.update({
   id: '/you',
   path: '/you',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => FeedRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/daily': typeof DailyRoute
-  '/favorites': typeof FavoritesRoute
-  '/you': typeof YouRoute
+  '/': typeof FeedIndexRoute
+  '/daily': typeof FeedDailyRoute
+  '/favorites': typeof FeedFavoritesRoute
+  '/you': typeof FeedYouRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/daily': typeof DailyRoute
-  '/favorites': typeof FavoritesRoute
-  '/you': typeof YouRoute
+  '/daily': typeof FeedDailyRoute
+  '/favorites': typeof FeedFavoritesRoute
+  '/you': typeof FeedYouRoute
+  '/': typeof FeedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/daily': typeof DailyRoute
-  '/favorites': typeof FavoritesRoute
-  '/you': typeof YouRoute
+  '/_feed': typeof FeedRouteWithChildren
+  '/_feed/daily': typeof FeedDailyRoute
+  '/_feed/favorites': typeof FeedFavoritesRoute
+  '/_feed/you': typeof FeedYouRoute
+  '/_feed/': typeof FeedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/daily' | '/favorites' | '/you'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/daily' | '/favorites' | '/you'
-  id: '__root__' | '/' | '/daily' | '/favorites' | '/you'
+  to: '/daily' | '/favorites' | '/you' | '/'
+  id:
+    | '__root__'
+    | '/_feed'
+    | '/_feed/daily'
+    | '/_feed/favorites'
+    | '/_feed/you'
+    | '/_feed/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  DailyRoute: typeof DailyRoute
-  FavoritesRoute: typeof FavoritesRoute
-  YouRoute: typeof YouRoute
+  FeedRoute: typeof FeedRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_feed': {
+      id: '/_feed'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof FeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_feed/': {
+      id: '/_feed/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof FeedIndexRouteImport
+      parentRoute: typeof FeedRoute
     }
-    '/daily': {
-      id: '/daily'
+    '/_feed/daily': {
+      id: '/_feed/daily'
       path: '/daily'
       fullPath: '/daily'
-      preLoaderRoute: typeof DailyRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof FeedDailyRouteImport
+      parentRoute: typeof FeedRoute
     }
-    '/favorites': {
-      id: '/favorites'
+    '/_feed/favorites': {
+      id: '/_feed/favorites'
       path: '/favorites'
       fullPath: '/favorites'
-      preLoaderRoute: typeof FavoritesRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof FeedFavoritesRouteImport
+      parentRoute: typeof FeedRoute
     }
-    '/you': {
-      id: '/you'
+    '/_feed/you': {
+      id: '/_feed/you'
       path: '/you'
       fullPath: '/you'
-      preLoaderRoute: typeof YouRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof FeedYouRouteImport
+      parentRoute: typeof FeedRoute
     }
   }
 }
 
+interface FeedRouteChildren {
+  FeedDailyRoute: typeof FeedDailyRoute
+  FeedFavoritesRoute: typeof FeedFavoritesRoute
+  FeedYouRoute: typeof FeedYouRoute
+  FeedIndexRoute: typeof FeedIndexRoute
+}
+
+const FeedRouteChildren: FeedRouteChildren = {
+  FeedDailyRoute: FeedDailyRoute,
+  FeedFavoritesRoute: FeedFavoritesRoute,
+  FeedYouRoute: FeedYouRoute,
+  FeedIndexRoute: FeedIndexRoute,
+}
+
+const FeedRouteWithChildren = FeedRoute._addFileChildren(FeedRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  DailyRoute: DailyRoute,
-  FavoritesRoute: FavoritesRoute,
-  YouRoute: YouRoute,
+  FeedRoute: FeedRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

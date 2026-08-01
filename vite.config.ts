@@ -23,6 +23,10 @@ const config = defineConfig({
 			// without a server. Note: enabling `spa` here would divert the root
 			// render to _shell.html and leave no index.html at all.
 			prerender: { enabled: true, crawlLinks: true },
+			// The tab routes sit under a pathless layout, which automatic path
+			// discovery does not reach, and the prerendered page is the splash so
+			// there are no links to crawl either — hence the explicit list.
+			pages: [{ path: "/you" }, { path: "/favorites" }, { path: "/daily" }],
 			// emitted next to the prerendered pages for search engines
 			sitemap: { enabled: true, host: `${SITE_ORIGIN}${base}` },
 		}),

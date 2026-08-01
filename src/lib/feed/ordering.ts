@@ -86,3 +86,12 @@ export function selectList({
 			return playableFirst(games, unlocked);
 	}
 }
+
+/** which tab a route path is showing */
+export function tabForPath(pathname: string): Tab {
+	const last = pathname.replace(/\/$/, "").split("/").pop();
+	if (last === "you") return "foryou";
+	if (last === "favorites") return "favorites";
+	if (last === "daily") return "daily";
+	return "all";
+}
