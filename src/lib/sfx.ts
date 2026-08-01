@@ -40,27 +40,27 @@ export const sfx = {
 		blip(620, 0.05, "square", 0.04);
 	},
 	win() {
-		[523, 659, 784, 1047].forEach((f, i) =>
-			blip(f, 0.14, "triangle", 0.09, i * 0.09),
-		);
+		[523, 659, 784, 1047].forEach((f, i) => {
+			blip(f, 0.14, "triangle", 0.09, i * 0.09);
+		});
 		buzz([25, 40, 25]);
 	},
 	lose() {
-		[392, 311, 233].forEach((f, i) =>
-			blip(f, 0.18, "sawtooth", 0.05, i * 0.13),
-		);
+		[392, 311, 233].forEach((f, i) => {
+			blip(f, 0.18, "sawtooth", 0.05, i * 0.13);
+		});
 		buzz(60);
 	},
 	levelUp() {
-		[523, 784, 1047, 1319, 1568].forEach((f, i) =>
-			blip(f, 0.16, "triangle", 0.09, i * 0.08),
-		);
+		[523, 784, 1047, 1319, 1568].forEach((f, i) => {
+			blip(f, 0.16, "triangle", 0.09, i * 0.08);
+		});
 		buzz([30, 50, 30, 50, 60]);
 	},
 	daily() {
-		[659, 784, 988, 1319, 1568, 2093].forEach((f, i) =>
-			blip(f, 0.18, "triangle", 0.09, i * 0.1),
-		);
+		[659, 784, 988, 1319, 1568, 2093].forEach((f, i) => {
+			blip(f, 0.18, "triangle", 0.09, i * 0.1);
+		});
 		buzz([40, 60, 40, 60, 100]);
 	},
 };
