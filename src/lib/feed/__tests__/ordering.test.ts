@@ -104,6 +104,28 @@ describe("selectList", () => {
 		]);
 	});
 
+	it("opens the all tab on a playable game, keeping locked ones as teasers", () => {
+		const list = selectList({
+			...base,
+			tab: "all",
+			player: player(),
+			unlocked: (id) => id === "d",
+		});
+		// every game is still there, but the unlocked one leads
+		expect(ids(list)).toEqual(["d", "a", "b", "c", "e"]);
+	});
+
+	it("keeps locked favourites visible, after the playable ones", () => {
+		const p = player({ favorites: ["a", "d"] });
+		const list = selectList({
+			...base,
+			tab: "favorites",
+			player: p,
+			unlocked: (id) => id === "d",
+		});
+		expect(ids(list)).toEqual(["d", "a"]);
+	});
+
 	it("orders the for-you tab by weight", () => {
 		const p = player({ plays: { e: 9 }, favorites: ["c"] });
 		const list = selectList({ ...base, tab: "foryou", player: p });

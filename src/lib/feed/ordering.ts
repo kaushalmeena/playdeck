@@ -49,6 +49,19 @@ export type SelectArgs = {
 	unlocked: (id: string) => boolean;
 };
 
+/**
+ * Playable games first, locked teasers after — each group keeps the order it
+ * came in with. Without this a new player, who has only the free games
+ * unlocked, opens the feed on a locked card.
+ */
+const playableFirst = (
+	games: Array<GameEntry>,
+	unlocked: (id: string) => boolean,
+): Array<GameEntry> => [
+	...games.filter((g) => unlocked(g.id)),
+	...games.filter((g) => !unlocked(g.id)),
+];
+
 /** the cards a tab shows, in the order it shows them */
 export function selectList({
 	tab,
@@ -61,12 +74,15 @@ export function selectList({
 		case "daily":
 			return daily;
 		case "favorites":
-			return games.filter((g) => player.favorites.includes(g.id));
+			return playableFirst(
+				games.filter((g) => player.favorites.includes(g.id)),
+				unlocked,
+			);
 		case "foryou":
 			return games
 				.filter((g) => unlocked(g.id))
 				.sort((a, b) => forYouWeight(b, player) - forYouWeight(a, player));
 		default:
-			return games;
+			return playableFirst(games, unlocked);
 	}
 }
