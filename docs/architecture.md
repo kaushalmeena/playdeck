@@ -58,6 +58,17 @@ means there is no state in which it can latch.
 
 Touch swiping is left entirely to native CSS scroll snapping.
 
+### Opening the feed
+
+[`useFeedReady`](../src/hooks/useFeedReady.ts) holds a splash until three
+things line up: the deck is shuffled, the first card's chunk has arrived, and
+the splash has been up long enough not to register as a blink. It then
+overlaps the feed for one cross-fade, so the reveal never shows a gap.
+
+Because the server render happens before any of that, the prerendered HTML is
+the splash rather than a half-shuffled list — which also takes the static page
+from 94KB down to 2.5KB.
+
 ### Input ownership
 
 While a run is live the feed freezes: the scroller switches to
@@ -72,10 +83,13 @@ not depend on the freeze winning a race.
 
 Two orderings, deliberately separate:
 
-- **Display order** is reshuffled every visit
+- **Display order** is reshuffled once per browsing session
   ([`useShuffledGames`](../src/hooks/useShuffledGames.ts)). Seed `0` — the
   canonical order — is used for the server render and first paint so
-  hydration matches, then a real seed is drawn on mount.
+  hydration matches, then the session's seed is applied on mount. The seed
+  lives in `sessionStorage`, so a reload keeps the deck you were looking at
+  and only a new tab deals a new one; reshuffling on every mount made a
+  refresh feel like the app had lost your place.
 - **Unlock rank** is each game's `meta.order`, which never changes. Eight
   games are free and every 250 points unlocks a wave of four.
 
