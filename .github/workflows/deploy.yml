@@ -23,7 +23,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      # not `npm ci`: Tailwind's wasm fallback package pulls @emnapi/* deps that
+      # npm cannot resolve into the lock file from macOS, so a lock generated
+      # locally always looks out of sync to `npm ci` on Linux.
+      - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm test
       - run: npm run build
