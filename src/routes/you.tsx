@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { GameFeed } from "../components/feed/GameFeed";
 import { GAMES } from "../games/registry";
 
-export const Route = createFileRoute("/")({ component: AllFeed });
+export const Route = createFileRoute("/you")({ component: ForYouFeed });
 
-function AllFeed() {
-	return <GameFeed games={GAMES} tab="all" />;
+function ForYouFeed() {
+	return <GameFeed games={GAMES} tab="foryou" />;
 }
