@@ -34,7 +34,7 @@ raises it by one.
 | 👁️ Flash Count    | The dots vanish in a blink. How many were there?               | More dots, shorter flash                 |
 | ✅ Fact Check     | 7 × 8 = 54. True or false? Think fast.                         | Bigger products, tighter clock           |
 | 🧩 Pattern Echo   | The grid flashes a shape. Paint it back from memory.           | Bigger grid, more lit tiles              |
-| ⏱️ Stop Watch     | Stop at exactly 3.00s — blind for the last stretch.            | Tighter tolerance                        |
+| 2️⃣ Tile Merge     | Swipe to merge matching tiles. Reach the target.               | Higher target tile                       |
 | 🧺 Star Catch     | Catch the falling stars. Not the bombs.                        | Faster fall, higher quota, bombs         |
 | 🗺️ Path Recall    | Watch the glowing trail. Walk it from memory.                  | Bigger grid, longer path                 |
 | 🧱 Brick Break    | One ball, one life. Clear the wall.                            | More rows, faster ball, smaller paddle   |
