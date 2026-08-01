@@ -41,8 +41,10 @@ export function dailyGames(
 ): Array<GameEntry> {
 	const rng = mulberry32(hash(date));
 	const pool = [...games];
+	// fix the target up front — `pool` shrinks as we draw from it
+	const want = Math.min(DAILY_SIZE, pool.length);
 	const picked: Array<GameEntry> = [];
-	while (picked.length < Math.min(DAILY_SIZE, pool.length)) {
+	while (picked.length < want) {
 		const i = Math.floor(rng() * pool.length);
 		picked.push(pool.splice(i, 1)[0]);
 	}
