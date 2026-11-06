@@ -53,19 +53,23 @@ function GameCardImpl({
 	return (
 		<section className="relative size-full overflow-hidden" data-game={game.id}>
 			{locked ? (
-				<LockedCard game={game} unlockAt={unlockAt} />
+				<LockedCard game={game} unlockAt={unlockAt} total={total} />
 			) : mounted && Game ? (
 				<Game
 					level={level}
 					active={active}
 					onEnd={onEnd}
 					onPlayingChange={onPlayingChange}
+					onNext={onNext}
 				/>
 			) : (
 				<CardPlaceholder game={game} />
 			)}
 
-			<div className="pointer-events-none absolute bottom-6 left-4 z-30 max-w-[65%] drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
+			<div // text-shadow, not a drop-shadow filter: a filtered layer next to the
+				// overlay's backdrop-filter stops painting in Chrome
+				className="pointer-events-none absolute bottom-6 left-4 z-30 max-w-[65%] [text-shadow:0_2px_8px_rgb(0_0_0/0.45)]"
+			>
 				<h2 className="text-lg font-extrabold tracking-wide">
 					{game.emoji} {game.title}
 					{dailyDone && " ✅"}
