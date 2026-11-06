@@ -20,7 +20,8 @@ That is the whole workflow — the dev server picks the file up immediately.
 | React          | `src/games/<id>.game.tsx`  | Games that want the kit hooks and the app's components     |
 | HTML (plug-in) | `src/games/<id>.game.html` | Any self-contained page — canvas, vanilla JS, a ported toy |
 
-Both appear in the same feed, score the same way and get the same chrome.
+Every game that ships today is HTML — start there. Both formats appear in the
+same feed, score the same way and get the same chrome.
 The rest of this page covers the React contract; the HTML one is
 [below](#html-games).
 
