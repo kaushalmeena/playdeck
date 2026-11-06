@@ -39,6 +39,7 @@ export type GameMessage =
 	| { type: "end"; won: boolean; score: number; note?: string }
 	| { type: "hud"; chips?: Array<string>; progress?: number }
 	| { type: "sfx"; name: string; arg?: number }
+	| { type: "tone"; freq: number; dur: number }
 	| { type: "pop"; x: number; y: number; text: string; color?: string }
 	| { type: "burst"; x: number; y: number; color?: string; count?: number }
 	| { type: "shake"; strength?: number }
@@ -82,6 +83,12 @@ export function readGameMessage(data: unknown): GameMessage | null {
 			const name = str(m.name, 16);
 			return name ? { type: "sfx", name, arg: num(m.arg) } : null;
 		}
+		case "tone":
+			return {
+				type: "tone",
+				freq: Math.min(Math.max(num(m.freq, 440), 40), 4000),
+				dur: Math.min(Math.max(num(m.dur, 0.2), 0.02), 1.5),
+			};
 		case "pop":
 			return {
 				type: "pop",
@@ -116,6 +123,7 @@ export function readGameMessage(data: unknown): GameMessage | null {
  *   playdeck.end(won, score, note?)      report the run — once per run
  *   playdeck.hud({ chips, progress })    HUD chips and the 0..1 timer bar
  *   playdeck.sfx(name, arg?)             "good" "bad" "pop" "hit" "collect" …
+ *   playdeck.tone(freq, dur)             a musical note (Hz, seconds)
  *   playdeck.pop(x, y, text, color?)     floating "+10" at a point
  *   playdeck.burst(x, y, color?, count?) particle burst at a point
  *   playdeck.shake(strength?)            screen shake (0..3)
@@ -143,6 +151,7 @@ onStop:function(f){stops.push(f);},
 end:function(won,score,note){if(!running)return;running=false;send("end",{won:!!won,score:+score||0,note:note});},
 hud:function(h){send("hud",{chips:h&&h.chips,progress:h&&h.progress});},
 sfx:function(name,arg){send("sfx",{name:name,arg:arg});},
+tone:function(freq,dur){send("tone",{freq:freq,dur:dur});},
 pop:function(x,y,text,color){send("pop",{x:x,y:y,text:String(text),color:color});},
 burst:function(x,y,color,count){send("burst",{x:x,y:y,color:color,count:count});},
 shake:function(s){send("shake",{strength:s});},

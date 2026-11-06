@@ -57,6 +57,16 @@ describe("readGameMessage", () => {
 		expect(m).toEqual({ type: "hud", chips: ["a", "b", "c"], progress: 1 });
 	});
 
+	it("clamps tones to an audible, short range", () => {
+		expect(
+			readGameMessage(msg({ type: "tone", freq: 99999, dur: 10 })),
+		).toEqual({
+			type: "tone",
+			freq: 4000,
+			dur: 1.5,
+		});
+	});
+
 	it("rejects unknown types", () => {
 		expect(readGameMessage(msg({ type: "eval", code: "x" }))).toBeNull();
 	});

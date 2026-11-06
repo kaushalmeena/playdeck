@@ -106,6 +106,10 @@ function HtmlGame({
 				case "sfx":
 					if (playingRef.current) GAME_SFX[message.name]?.(message.arg);
 					break;
+				case "tone":
+					// through the app's audio, so the mute toggle applies
+					if (playingRef.current) sfx.note(message.freq, message.dur);
+					break;
 				case "pop":
 				case "burst": {
 					if (!playingRef.current) break;

@@ -249,6 +249,7 @@ Only `title` is required; a missing one fails the build with the file name.
 | `playdeck.end(won, score, note?)`     | Report the run; ignored after the first call                             |
 | `playdeck.hud({ chips, progress })`   | Up to 3 HUD chips and the 0..1 timer bar                                 |
 | `playdeck.sfx(name, arg?)`            | `good` `bad` `step` `pop` `hit` `boom` `bounce` `collect` `flap` `merge` |
+| `playdeck.tone(freq, dur)`            | A musical note (Hz, seconds), muted with the app                         |
 | `playdeck.pop(x, y, text, color?)`    | Floating score text at a point                                           |
 | `playdeck.burst(x, y, color?, n?)`    | Particle burst at a point                                                |
 | `playdeck.shake(strength?)`           | Screen shake, 0..3                                                       |

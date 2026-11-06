@@ -175,6 +175,10 @@ export const sfx = {
 	step() {
 		play({ freq: 440, dur: 0.025, type: "square", gain: 0.03 });
 	},
+	/** a plain musical note — for games whose notes carry meaning (pads, tiles) */
+	note(freq: number, dur: number) {
+		play({ freq, dur, type: "triangle", gain: 0.07 });
+	},
 	/** bubble pop */
 	pop() {
 		play({ freq: 900, to: 320, dur: 0.07, type: "sine", gain: 0.05 });
