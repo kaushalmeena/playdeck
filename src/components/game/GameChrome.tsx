@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { GameResult } from "../../games/kit";
+import { useAutoJuice } from "../../hooks/useAutoJuice";
 import { GameOverlay } from "./GameOverlay";
 import { GameTopBar } from "./GameTopBar";
+import { JuiceLayer } from "./JuiceLayer";
 
 export { Chip } from "./Chip";
 
@@ -50,6 +52,9 @@ export function GameChrome({
 	children,
 }: Props) {
 	// let the feed lock scrolling while a run is live
+	const stage = useRef<HTMLDivElement>(null);
+	useAutoJuice(playing, accent);
+
 	useEffect(() => {
 		onPlayingChange?.(playing);
 		return () => onPlayingChange?.(false);
@@ -57,10 +62,13 @@ export function GameChrome({
 
 	return (
 		<div
+			ref={stage}
 			className="relative size-full overflow-hidden select-none"
 			style={{ background: STAGE }}
 		>
 			{children}
+
+			<JuiceLayer live={playing} accent={accent} stageRef={stage} />
 
 			{playing && progress !== undefined && (
 				<div

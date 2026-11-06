@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { GameChrome } from "../../components/game/GameChrome";
+import { juice } from "../../lib/juice";
 import { useTheme } from "../../lib/theme";
 import type { GameMeta, GameProps } from "../kit";
 import { sfx, themeColor, useRun } from "../kit";
@@ -103,6 +104,24 @@ function HtmlGame({
 					break;
 				case "sfx":
 					if (playingRef.current) GAME_SFX[message.name]?.(message.arg);
+					break;
+				case "pop":
+				case "burst": {
+					if (!playingRef.current) break;
+					// frame coordinates → viewport coordinates for the juice bus
+					const rect = frame.current?.getBoundingClientRect();
+					const x = message.x + (rect?.left ?? 0);
+					const y = message.y + (rect?.top ?? 0);
+					if (message.type === "pop")
+						juice.pop(x, y, message.text, message.color);
+					else juice.burst(x, y, message.color, message.count);
+					break;
+				}
+				case "shake":
+					if (playingRef.current) juice.shake(message.strength);
+					break;
+				case "flash":
+					if (playingRef.current) juice.flash(message.color);
 					break;
 				default:
 					break;
