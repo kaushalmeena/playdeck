@@ -1,0 +1,383 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Color Clash" />
+		<meta name="playdeck:emoji" content="🎨" />
+		<meta
+			name="playdeck:desc"
+			content="Does the word match its ink? Trust your eyes, not your brain."
+		/>
+		<meta name="playdeck:order" content="8" />
+		<meta name="playdeck:accent" content="#ff5cd0" />
+		<meta
+			name="playdeck:instructions"
+			content="A color word appears in some ink. Tap MATCH if the word and ink agree, CLASH if they don't (or ← / →). Beat each word's timer — fast answers and streaks score big."
+		/>
+		<style>
+			:root {
+				--accent: #ff5cd0;
+			}
+			/* ---- shared arcade layout: combo, per-answer timer, tiles ---- */
+			#game {
+				position: absolute;
+				inset: 92px 16px 92px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 16px;
+			}
+			#combo {
+				display: flex;
+				align-items: baseline;
+				gap: 10px;
+				height: 56px;
+				font-weight: 900;
+				color: var(--t-muted);
+				transition: color 0.2s;
+			}
+			#combo b {
+				display: inline-block;
+				font-size: 50px;
+				line-height: 1;
+			}
+			#combo span {
+				font-size: 13px;
+				letter-spacing: 0.2em;
+			}
+			#combo.hot {
+				color: var(--accent);
+				text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+			}
+			#combo.bump b {
+				animation: bump 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+			}
+			@keyframes bump {
+				from {
+					transform: scale(1.8);
+				}
+			}
+			#tbar {
+				width: min(84vw, 400px);
+				height: 8px;
+				border-radius: 99px;
+				background: color-mix(in srgb, var(--t-line) 80%, transparent);
+				overflow: hidden;
+				transition: opacity 0.2s;
+			}
+			#tbar i {
+				display: block;
+				height: 100%;
+				background: var(--accent);
+				border-radius: inherit;
+				transform-origin: left;
+			}
+			#tbar.low i {
+				background: var(--t-danger);
+			}
+			#tbar.off {
+				opacity: 0.3;
+			}
+			.tile {
+				animation: pin 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+				animation-delay: calc(var(--i, 0) * 30ms);
+			}
+			@keyframes pin {
+				from {
+					transform: scale(0.2);
+					opacity: 0;
+				}
+			}
+			.tile.hit {
+				animation: hit 0.25s ease-out;
+			}
+			@keyframes hit {
+				40% {
+					transform: scale(1.14);
+				}
+			}
+			.tile.wrong {
+				animation: wrong 0.4s;
+			}
+			/* only a tapped button turns red; text and grids just shake */
+			button.wrong {
+				border-color: var(--t-danger) !important;
+				background: color-mix(
+					in srgb,
+					var(--t-danger) 40%,
+					transparent
+				) !important;
+			}
+			@keyframes wrong {
+				20% {
+					transform: translateX(-10px);
+				}
+				40% {
+					transform: translateX(9px);
+				}
+				60% {
+					transform: translateX(-6px);
+				}
+				80% {
+					transform: translateX(4px);
+				}
+			}
+
+			/* ---- this game ---- */
+			#word {
+				font-size: clamp(48px, 15vw, 72px);
+				font-weight: 900;
+				letter-spacing: 0.12em;
+				margin: 26px 0;
+				/* thin dark edge so yellow/green ink still reads on the light theme */
+				text-shadow:
+					0 2px 0 rgba(0, 0, 0, 0.35),
+					0 0 24px currentColor;
+			}
+			#btns {
+				display: flex;
+				gap: 12px;
+				width: min(84vw, 380px);
+			}
+			.pick {
+				flex: 1;
+				padding: 24px 0;
+				font: inherit;
+				font-size: 20px;
+				font-weight: 900;
+				letter-spacing: 0.1em;
+				border-radius: 18px;
+				cursor: pointer;
+				color: var(--c);
+				border: 2px solid color-mix(in srgb, var(--c) 60%, transparent);
+				background: color-mix(in srgb, var(--c) 14%, transparent);
+			}
+			#match {
+				--c: var(--t-good);
+			}
+			#clash {
+				--c: var(--t-danger);
+			}
+			.pick.right {
+				box-shadow: 0 0 0 4px var(--t-good);
+			}
+		</style>
+	</head>
+	<body>
+		<div id="game">
+			<div id="combo" aria-live="polite"></div>
+			<div id="tbar" class="off"><i></i></div>
+			<div id="word" aria-live="polite"></div>
+			<div id="btns">
+				<button id="match" class="pick" type="button">MATCH</button>
+				<button id="clash" class="pick" type="button">CLASH</button>
+			</div>
+		</div>
+		<script>
+			// ---------- shared arcade kit (combo, per-answer timer, juice) ----------
+			const $ = (id) => document.getElementById(id);
+			const ACCENT = "#ff5cd0",
+				GOLD = "#ffd24d";
+			const comboEl = $("combo"),
+				barEl = $("tbar"),
+				barFill = barEl.firstElementChild;
+			let state = "idle"; // idle | play (answer clock running) | wait | over
+			let timers = [],
+				raf = 0;
+			let score = 0,
+				streak = 0,
+				best = 0;
+			let limit = 1,
+				askedAt = 0; // per-answer clock: seconds allowed, start time (ms)
+
+			const after = (ms, fn) => timers.push(setTimeout(fn, ms));
+			function clearAll() {
+				timers.forEach(clearTimeout);
+				timers = [];
+				cancelAnimationFrame(raf);
+			}
+			function center(el) {
+				const r = el.getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			}
+			function retrigger(el, cls) {
+				el.classList.remove(cls);
+				void el.offsetWidth; // restart the CSS animation
+				el.classList.add(cls);
+			}
+			// ×1 → ×5, one step every 3 answers in a row
+			const mult = () => Math.min(1 + Math.floor(streak / 3), 5);
+			function drawCombo(bump) {
+				comboEl.innerHTML = `<b>×${mult()}</b><span>STREAK ${streak}</span>`;
+				comboEl.className = (mult() > 1 ? "hot " : "") + (bump ? "bump" : "");
+			}
+			function arm(seconds) {
+				limit = seconds;
+				askedAt = performance.now();
+				barEl.classList.remove("off", "low");
+				barFill.style.transform = "scaleX(1)";
+				state = "play";
+			}
+			function loop(now) {
+				if (state === "idle") return;
+				if (state === "play") {
+					const left = 1 - (now - askedAt) / 1000 / limit;
+					barFill.style.transform = `scaleX(${Math.max(left, 0)})`;
+					barEl.classList.toggle("low", left < 0.3);
+					if (left <= 0) timeout();
+				}
+				raf = requestAnimationFrame(loop);
+			}
+			// Correct answer: score with the streak multiplier, +N pop, burst, FAST!
+			function reward(el, base, color = ACCENT, sound = true) {
+				const took = (performance.now() - askedAt) / 1000;
+				const fast = took < limit * 0.35;
+				const before = mult();
+				streak += 1;
+				best = Math.max(best, streak);
+				const pts = base * mult() + (fast ? 5 : 0);
+				score += pts;
+				const { x, y } = center(el);
+				if (sound) playdeck.sfx("merge", 2 ** Math.min(streak + 1, 11)); // pitch climbs with the streak
+				playdeck.pop(x, y - 10, `+${pts}`, color);
+				playdeck.burst(x, y, color, 10 + mult() * 3);
+				if (fast) after(100, () => playdeck.pop(x, y - 50, "FAST!", GOLD));
+				if (mult() > before) {
+					const c = center(comboEl);
+					playdeck.pop(c.x, c.y + 40, `×${mult()} COMBO!`, ACCENT);
+				}
+				retrigger(el, "hit");
+				drawCombo(true);
+				state = "wait";
+				barEl.classList.add("off");
+				return fast;
+			}
+			// Fatal mistake: shake, let it register for a beat, then end.
+			function fail(el, note) {
+				state = "over";
+				barEl.classList.add("off");
+				playdeck.sfx("bad");
+				if (el) retrigger(el, "wrong");
+				after(750, () => {
+					state = "idle";
+					playdeck.end(false, score, note);
+				});
+			}
+			function win(bonus, note) {
+				state = "over";
+				score += bonus;
+				barEl.classList.add("off");
+				playdeck.flash(ACCENT);
+				playdeck.sfx("good");
+				after(400, () => {
+					state = "idle";
+					playdeck.end(true, score, note);
+				});
+			}
+
+			// ---------- Color Clash ----------
+			const COLORS = [
+				{ name: "RED", hex: "#ff4d6d" },
+				{ name: "GREEN", hex: "#2ee08a" },
+				{ name: "BLUE", hex: "#4d9fff" },
+				{ name: "YELLOW", hex: "#ffcc33" },
+				{ name: "PINK", hex: "#ff5cd0" },
+				{ name: "ORANGE", hex: "#ff8a3d" },
+			];
+			const wordEl = $("word"),
+				matchBtn = $("match"),
+				clashBtn = $("clash");
+			let L = 1,
+				rounds = 0,
+				done = 0,
+				round = null;
+
+			const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+			function genRound() {
+				// early levels use 4 colours; ORANGE/PINK join later (they look close to RED)
+				const pool = COLORS.slice(0, L < 3 ? 4 : L < 5 ? 5 : 6);
+				const word = pick(pool);
+				const match = Math.random() < 0.5;
+				const ink = match
+					? word
+					: pick(pool.filter((c) => c.name !== word.name));
+				return { word: word.name, ink: ink.hex, inkName: ink.name, match };
+			}
+
+			function hud() {
+				playdeck.hud({ chips: [`${done}/${rounds}`, `${score} PTS`] });
+			}
+
+			function ask() {
+				round = genRound();
+				wordEl.textContent = round.word;
+				wordEl.style.color = round.ink;
+				wordEl.setAttribute(
+					"aria-label",
+					`${round.word} written in ${round.inkName} ink`,
+				);
+				retrigger(wordEl, "tile");
+				// the answer window tightens with level, and a little over the run
+				arm(Math.max(2.6 - L * 0.12 - done * 0.03, 1.1));
+				hud();
+			}
+
+			function answer(saysMatch) {
+				if (!playdeck.running || state !== "play") return;
+				const btn = saysMatch ? matchBtn : clashBtn;
+				if (saysMatch !== round.match) {
+					(round.match ? matchBtn : clashBtn).classList.add("right");
+					return fail(
+						btn,
+						round.match ? "It matched!" : `That was ${round.inkName} ink`,
+					);
+				}
+				reward(btn, 8, round.match ? "#3dffa0" : "#ff4d6d");
+				done += 1;
+				hud();
+				if (done >= rounds)
+					return win(20 + best * 2, `${rounds} straight! Best streak ${best}`);
+				after(220, ask);
+			}
+
+			function timeout() {
+				(round.match ? matchBtn : clashBtn).classList.add("right");
+				fail(wordEl, "Too slow");
+			}
+
+			matchBtn.addEventListener("pointerdown", () => answer(true));
+			clashBtn.addEventListener("pointerdown", () => answer(false));
+			document.addEventListener("keydown", (e) => {
+				const v = { ArrowLeft: true, m: true, ArrowRight: false, c: false }[
+					e.key
+				];
+				if (v === undefined) return;
+				e.preventDefault();
+				answer(v);
+			});
+
+			playdeck.onStart(({ level }) => {
+				clearAll();
+				L = Math.min(Math.max(level, 1), 12);
+				rounds = 12 + Math.min(L, 8);
+				score = streak = best = done = 0;
+				matchBtn.className = clashBtn.className = "pick";
+				retrigger(matchBtn, "tile");
+				clashBtn.style.setProperty("--i", 2);
+				retrigger(clashBtn, "tile");
+				drawCombo(false);
+				ask();
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				clearAll();
+				state = "idle";
+				barEl.classList.add("off");
+				wordEl.textContent = "";
+			});
+		</script>
+	</body>
+</html>
