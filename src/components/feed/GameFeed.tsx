@@ -127,6 +127,7 @@ export function GameFeed({
 										game={game}
 										mounted={Math.abs(card.index - feed.index) <= 1 && !locked}
 										active={card.index === feed.index}
+										playing={playingId === game.id}
 										locked={locked}
 										unlockAt={unlockThreshold(rank.get(game.id) ?? 0)}
 										level={player.levels[game.id] ?? 1}
