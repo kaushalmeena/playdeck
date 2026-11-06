@@ -17,6 +17,13 @@ describe("injectSdk", () => {
 		expect(out).toContain("window.playdeck");
 	});
 
+	it("re-measures before every run starts", () => {
+		const out = injectSdk("<head></head>");
+		expect(out).toMatch(
+			/type==="start"[^}]*dispatchEvent\(new Event\("resize"\)\)/,
+		);
+	});
+
 	it("handles a bare fragment", () => {
 		expect(injectSdk("<canvas></canvas>")).toMatch(
 			/window\.playdeck[\s\S]*<canvas>/,

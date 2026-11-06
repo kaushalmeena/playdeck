@@ -130,6 +130,9 @@ export function readGameMessage(data: unknown): GameMessage | null {
  *   playdeck.flash(color?)               full-stage flash
  *   playdeck.level                       the current level
  *
+ * A \`resize\` event fires right before every run starts, so a game that
+ * measured itself while its frame was hidden (0×0) re-measures in time.
+ *
  * Theme tokens arrive as CSS variables (`--t-bg`, `--t-accent`, …) on the
  * frame's root element, so `var(--t-text)` just works.
  */
@@ -140,7 +143,7 @@ function theme(t){if(!t)return;var r=document.documentElement;for(var k in t)r.s
 addEventListener("message",function(e){
 if(e.source!==parent)return;var m=e.data;if(!m||m.source!==${JSON.stringify(HOST_TAG)})return;
 theme(m.theme);
-if(m.type==="start"){level=m.level;running=true;starts.forEach(function(f){f({level:level});});}
+if(m.type==="start"){level=m.level;running=true;dispatchEvent(new Event("resize"));starts.forEach(function(f){f({level:level});});}
 if(m.type==="stop"){running=false;stops.forEach(function(f){f();});}
 });
 window.playdeck={
