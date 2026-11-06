@@ -13,6 +13,17 @@ is gone. There is no manifest to edit and no app code to touch.
 
 That is the whole workflow — the dev server picks the file up immediately.
 
+## Two formats
+
+| Format         | File                       | Best for                                                   |
+| -------------- | -------------------------- | ---------------------------------------------------------- |
+| React          | `src/games/<id>.game.tsx`  | Games that want the kit hooks and the app's components     |
+| HTML (plug-in) | `src/games/<id>.game.html` | Any self-contained page — canvas, vanilla JS, a ported toy |
+
+Both appear in the same feed, score the same way and get the same chrome.
+The rest of this page covers the React contract; the HTML one is
+[below](#html-games).
+
 ## How discovery works
 
 [`src/games/registry.ts`](../src/games/registry.ts) globs `./*.game.tsx` with
@@ -196,3 +207,62 @@ clamp your curve rather than letting it run away.
 - [ ] `cancel()` runs when `active` goes false
 - [ ] Keyboard controls go through `useGameKeys`
 - [ ] Wrapped in `GameChrome`
+
+## HTML games
+
+An HTML game is one self-contained `.game.html` page. Copy
+[`src/games/_template.game.html`](../src/games/_template.game.html), fill in
+the `playdeck:*` meta tags, and write the game in plain HTML/CSS/JS — no
+build step, no React, no imports from the app.
+
+```html
+<meta name="playdeck:title" content="Chain Burst" />
+<meta name="playdeck:emoji" content="💥" />
+<meta name="playdeck:desc" content="One tap. Start the chain." />
+<meta name="playdeck:order" content="33" />
+<meta name="playdeck:accent" content="#ff5cd0" />
+<meta name="playdeck:instructions" content="How to play." />
+```
+
+Only `title` is required; a missing one fails the build with the file name.
+
+### How it runs
+
+- [`plugins/html-game.ts`](../plugins/html-game.ts) parses the meta tags at
+  build time, so the feed lists the game without downloading it.
+- The page itself is a lazy `?raw` chunk, loaded when its card nears the
+  screen, and rendered in an `<iframe sandbox="allow-scripts">` — no
+  same-origin, so it cannot read the app's storage, cookies or DOM.
+- [`html/bridge.ts`](../src/games/html/bridge.ts) injects a small SDK as
+  `window.playdeck` ahead of the game's scripts and validates every message
+  coming back out of the frame.
+- [`html/HtmlGame.tsx`](../src/games/html/HtmlGame.tsx) wraps the frame in
+  `GameChrome`, so the overlay, HUD, quit button, scoring and sounds are the
+  same as for a React game.
+
+### The SDK
+
+| Call                                  | Does                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `playdeck.onStart(({ level }) => …)`  | A run begins — reset and go                                              |
+| `playdeck.onStop(() => …)`            | The player quit or scrolled away                                         |
+| `playdeck.end(won, score, note?)`     | Report the run; ignored after the first call                             |
+| `playdeck.hud({ chips, progress })`   | Up to 3 HUD chips and the 0..1 timer bar                                 |
+| `playdeck.sfx(name, arg?)`            | `good` `bad` `step` `pop` `hit` `boom` `bounce` `collect` `flap` `merge` |
+| `playdeck.pop(x, y, text, color?)`    | Floating score text at a point                                           |
+| `playdeck.burst(x, y, color?, n?)`    | Particle burst at a point                                                |
+| `playdeck.shake(strength?)`           | Screen shake, 0..3                                                       |
+| `playdeck.flash(color?)`              | Full-stage flash                                                         |
+| `playdeck.level` / `playdeck.running` | Current level / whether a run is live                                    |
+
+Coordinates are the frame's own client coordinates, which match the stage.
+Theme colours arrive as CSS variables (`--t-text`, `--t-accent`, …) and the
+page background is transparent so the shared stage shows through.
+
+### Checklist
+
+- [ ] File is `src/games/<name>.game.html`, no leading underscore
+- [ ] Has `playdeck:title` (and ideally every other `playdeck:*` tag)
+- [ ] Resets fully in `onStart` and stops its loop in `onStop`
+- [ ] Calls `playdeck.end(won, score)` once per run
+- [ ] Difficulty scales from `level` and is clamped

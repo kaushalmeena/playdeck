@@ -25,7 +25,8 @@ adding or moving a route file.
 
 ## Conventions
 
-**A game is one file.** Drop it in and it appears in the feed; delete it and it
+**A game is one file** — `*.game.tsx` (React) or `*.game.html`
+(self-contained page in a sandboxed iframe). Drop it in and it appears in the feed; delete it and it
 is gone. There is no manifest to edit and no app code to touch — if adding a
 game requires changing app code, the contract has been broken. See
 [adding-a-game.md](docs/adding-a-game.md) for the contract and the checklist.
