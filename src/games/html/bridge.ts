@@ -130,7 +130,7 @@ export function readGameMessage(data: unknown): GameMessage | null {
  *   playdeck.flash(color?)               full-stage flash
  *   playdeck.level                       the current level
  *
- * A \`resize\` event fires right before every run starts, so a game that
+ * A `resize` event fires right before every run starts, so a game that
  * measured itself while its frame was hidden (0×0) re-measures in time.
  *
  * Theme tokens arrive as CSS variables (`--t-bg`, `--t-accent`, …) on the

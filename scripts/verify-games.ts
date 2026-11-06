@@ -1,7 +1,7 @@
 /**
  * Sanity-check plug-and-play HTML games without a full build:
  * meta tags parse, every inline <script> is valid JS, and the game calls
- * the SDK basics. Run: node scripts/verify-html-games.ts [files…]
+ * the SDK basics. Run: node scripts/verify-games.ts [files…]
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";

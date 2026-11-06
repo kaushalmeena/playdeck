@@ -18,7 +18,7 @@
 		"format:check": "oxfmt --check",
 		"lint:fix": "oxlint --fix",
 		"typecheck": "tsc --noEmit",
-		"verify:games": "node scripts/verify-html-games.ts"
+		"verify:games": "node scripts/verify-games.ts"
 	},
 	"dependencies": {
 		"@tailwindcss/vite": "^4.1.18",
