@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useCountdown, useRun } from "./kit";
@@ -87,7 +88,7 @@ export default function OddOneOut({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center px-4">
+			<div className="flex size-full items-center justify-center px-4">
 				<div
 					className="grid gap-2"
 					style={{
@@ -99,6 +100,7 @@ export default function OddOneOut({
 						<button
 							key={`${board.hue}-${i}`}
 							type="button"
+							aria-label={`Tile ${i + 1}`}
 							onPointerDown={() => tap(i)}
 							className="aspect-square rounded-xl border border-line"
 							style={{

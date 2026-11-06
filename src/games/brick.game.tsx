@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun, useThemeColor } from "./kit";
@@ -200,11 +201,11 @@ export default function BrickBreak({
 			onPlayingChange={onPlayingChange}
 		>
 			<div
-				className="h-full w-full touch-none"
+				className="size-full touch-none"
 				onPointerDown={(e) => move(e.clientX)}
 				onPointerMove={(e) => move(e.clientX)}
 			>
-				<canvas ref={canvasRef} className="h-full w-full" />
+				<canvas ref={canvasRef} className="size-full" />
 			</div>
 		</GameChrome>
 	);

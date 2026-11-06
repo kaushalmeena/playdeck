@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useCountdown, useRun } from "./kit";
@@ -100,16 +101,15 @@ export default function LightsOut({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center px-6">
+			<div className="flex size-full items-center justify-center px-6">
 				<div className="grid grid-cols-3 gap-3">
 					{board.map((lit, i) => (
 						<button
-							// biome-ignore lint/suspicious/noArrayIndexKey: fixed 3×3 grid
 							key={i}
 							type="button"
 							onPointerDown={() => tap(i)}
 							className={clsx(
-								"h-[min(24vw,110px)] w-[min(24vw,110px)] rounded-2xl border-2",
+								"size-[min(24vw,110px)] rounded-2xl border-2",
 								lit
 									? "border-[#ffd24d] bg-[#ffd24d]/25 shadow-[0_0_36px_rgba(255,210,77,0.45)]"
 									: "border-line bg-card",

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+
 import type { GameResult } from "../../games/kit";
 import { GameOverlay } from "./GameOverlay";
 import { GameTopBar } from "./GameTopBar";
@@ -56,7 +57,7 @@ export function GameChrome({
 
 	return (
 		<div
-			className="relative h-full w-full select-none overflow-hidden"
+			className="relative size-full overflow-hidden select-none"
 			style={{ background: STAGE }}
 		>
 			{children}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useGameKeys, useRun, useThemeColor } from "./kit";
@@ -215,7 +216,7 @@ export default function NeonSnake({
 		>
 			<canvas
 				ref={canvasRef}
-				className="h-full w-full touch-none"
+				className="size-full touch-none"
 				onTouchStart={(e) => {
 					touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 				}}

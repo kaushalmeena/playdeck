@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { DEFAULT_PAGER, WheelPager } from "../wheel";
 
 const { threshold, idleReset, sustainRearm } = DEFAULT_PAGER;

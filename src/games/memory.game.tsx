@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun } from "./kit";
@@ -134,7 +135,7 @@ export default function MindMatch({
 					style={{ transform: `scaleX(${Math.max(timeLeft / totalTime, 0)})` }}
 				/>
 			)}
-			<div className="flex h-full w-full items-center justify-center px-4 pt-24 pb-10">
+			<div className="flex size-full items-center justify-center px-4 pt-24 pb-10">
 				<div
 					className="grid gap-2.5"
 					style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
@@ -145,7 +146,7 @@ export default function MindMatch({
 							type="button"
 							onClick={() => flip(t.key)}
 							className={clsx(
-								"flex h-[min(18vw,84px)] w-[min(18vw,84px)] cursor-pointer items-center justify-center rounded-xl border text-3xl transition-all duration-150",
+								"flex size-[min(18vw,84px)] cursor-pointer items-center justify-center rounded-xl border text-3xl transition-all duration-150",
 								t.state === "done"
 									? "border-good bg-good/10 opacity-55"
 									: t.state === "open"

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useCountdown, useRun, useThemeColor } from "./kit";
@@ -16,6 +17,9 @@ export const meta: GameMeta = {
 const DURATION = 15;
 
 type Arc = { start: number; span: number };
+
+/** wrap an angle into [0, 2π) */
+const norm = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 
 export default function OrbitDash({
 	level,
@@ -77,8 +81,6 @@ export default function OrbitDash({
 			if (r.arcs.length > 3 + Math.min(level, 3)) r.arcs.shift();
 
 			// collision
-			const norm = (a: number) =>
-				((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 			for (const arc of r.arcs) {
 				const rel = norm(r.angle - arc.start);
 				if (rel >= 0 && rel <= arc.span) {
@@ -140,9 +142,9 @@ export default function OrbitDash({
 					sfx.step();
 					run.current.dir *= -1;
 				}}
-				className="block h-full w-full touch-none border-0 bg-transparent p-0"
+				className="block size-full touch-none border-0 bg-transparent p-0"
 			>
-				<canvas ref={canvasRef} className="h-full w-full" />
+				<canvas ref={canvasRef} className="size-full" />
 			</button>
 		</GameChrome>
 	);

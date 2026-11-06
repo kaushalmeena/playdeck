@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun } from "./kit";
@@ -138,16 +139,15 @@ export default function ZapBot({
 					style={{ transform: `scaleX(${Math.max(timeLeft / DURATION, 0)})` }}
 				/>
 			)}
-			<div className="flex h-full w-full items-center justify-center">
+			<div className="flex size-full items-center justify-center">
 				<div className="grid grid-cols-3 gap-3.5">
 					{cells.map((c, i) => (
 						<button
-							// biome-ignore lint/suspicious/noArrayIndexKey: fixed 3×3 grid
 							key={i}
 							type="button"
 							onPointerDown={() => tap(i)}
 							className={clsx(
-								"flex h-[min(26vw,120px)] w-[min(26vw,120px)] cursor-pointer items-center justify-center rounded-2xl border-2 text-[min(15vw,60px)] transition-transform duration-75 active:scale-95",
+								"flex size-[min(26vw,120px)] cursor-pointer items-center justify-center rounded-2xl border-2 text-[min(15vw,60px)] transition-transform duration-75 active:scale-95",
 								c.flash === "hit"
 									? "border-good bg-good/15"
 									: c.flash === "boom"

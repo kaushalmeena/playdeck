@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, shuffle, useCountdown, useRun } from "./kit";
@@ -109,7 +110,7 @@ export default function QuickMath({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-8 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-8 px-6">
 				<div className="text-5xl font-black tracking-wider">{q.text} = ?</div>
 				<div className="grid w-full max-w-sm grid-cols-2 gap-3">
 					{q.answers.map((n) => (

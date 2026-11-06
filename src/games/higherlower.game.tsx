@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useCountdown, useRun } from "./kit";
@@ -77,7 +78,7 @@ export default function HigherLower({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-10 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-10 px-6">
 				<div className="flex h-44 w-32 items-center justify-center rounded-2xl border-2 border-line bg-card text-6xl font-black shadow-[0_8px_40px_rgba(176,107,255,0.25)]">
 					{cur}
 				</div>

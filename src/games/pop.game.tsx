@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useCountdown, useRun } from "./kit";
@@ -110,7 +111,7 @@ export default function BubblePop({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="relative h-full w-full overflow-hidden">
+			<div className="relative size-full overflow-hidden">
 				{playing &&
 					bubbles.map((b) => (
 						<button

@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useGameKeys, useRun } from "./kit";
@@ -176,7 +177,7 @@ export default function TileMerge({
 			onPlayingChange={onPlayingChange}
 		>
 			<div
-				className="flex h-full w-full touch-none items-center justify-center"
+				className="flex size-full touch-none items-center justify-center"
 				onTouchStart={(e) => {
 					touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 				}}
@@ -193,7 +194,6 @@ export default function TileMerge({
 				<div className="grid w-[min(84vw,380px)] grid-cols-4 gap-2.5">
 					{board.map((value, i) => (
 						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: fixed 4×4 grid
 							key={i}
 							className={clsx(
 								"flex aspect-square items-center justify-center rounded-xl border-2 font-black transition-colors duration-100",

@@ -50,7 +50,7 @@ pad:
 - A **plain time cooldown** lets the inertia tail page by itself, so one flick
   travels several cards.
 
-So the pager arms on *intent* rather than on time. It arms when input begins
+So the pager arms on _intent_ rather than on time. It arms when input begins
 after a quiet gap, or when the delta jumps sharply — inertia only ever
 decays, so a sudden increase means the user pushed again. A sustained-input
 escape hatch re-arms after 600 ms of continuous above-floor scrolling, which
@@ -127,13 +127,13 @@ place.
 
 The pure modules are covered directly — 48 tests, no DOM, no rendering:
 
-| Suite         | Covers                                                     |
+| Suite         | Covers                                                      |
 | ------------- | ----------------------------------------------------------- |
-| `wheel`       | Paging, inertia rejection, and the never-latch guarantee     |
-| `loop`        | Wrap arithmetic and that a wrap keeps the same card visible  |
-| `progression` | Unlock waves and thresholds agreeing with each other         |
-| `ordering`    | Seeded shuffle determinism and per-tab list selection        |
-| `daily`       | Date keys, and that a date always yields the same set        |
+| `wheel`       | Paging, inertia rejection, and the never-latch guarantee    |
+| `loop`        | Wrap arithmetic and that a wrap keeps the same card visible |
+| `progression` | Unlock waves and thresholds agreeing with each other        |
+| `ordering`    | Seeded shuffle determinism and per-tab list selection       |
+| `daily`       | Date keys, and that a date always yields the same set       |
 
 Tests sit in `__tests__` folders next to the code they cover. Two real bugs
 came out of writing them: the daily picker returned a short set when the game

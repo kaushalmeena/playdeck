@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { pick, randInt, sfx, shuffle, useCountdown, useRun } from "./kit";
@@ -123,7 +124,7 @@ export default function ColorHunt({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-7 px-4">
+			<div className="flex size-full flex-col items-center justify-center gap-7 px-4">
 				<div
 					className="text-sm font-black tracking-[0.4em]"
 					style={{ color: wave.target.hex }}
@@ -133,9 +134,9 @@ export default function ColorHunt({
 				<div className="grid w-[min(84vw,400px)] grid-cols-4 gap-2.5">
 					{wave.tiles.map((t, i) => (
 						<button
-							// biome-ignore lint/suspicious/noArrayIndexKey: tiles regenerate per wave
 							key={`${doneCount}-${i}`}
 							type="button"
+							aria-label={`Tile ${i + 1}`}
 							onPointerDown={() => tap(i)}
 							className={clsx(
 								"aspect-square rounded-xl border border-line transition-opacity",

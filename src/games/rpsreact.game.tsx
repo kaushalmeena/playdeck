@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useRun, useTimers } from "./kit";
@@ -92,7 +93,7 @@ export default function RpsReact({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-8 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-8 px-6">
 				<div
 					className={clsx(
 						"text-sm font-black tracking-[0.4em]",
@@ -108,7 +109,7 @@ export default function RpsReact({
 							key={h}
 							type="button"
 							onPointerDown={() => choose(i)}
-							className="flex h-20 w-20 items-center justify-center rounded-2xl border border-line bg-card text-4xl"
+							className="flex size-20 items-center justify-center rounded-2xl border border-line bg-card text-4xl"
 						>
 							{h}
 						</button>

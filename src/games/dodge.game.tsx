@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import {
@@ -148,13 +149,13 @@ export default function DodgeRush({
 			onPlayingChange={onPlayingChange}
 		>
 			<div
-				className="h-full w-full touch-none"
+				className="size-full touch-none"
 				onPointerDown={(e) => {
 					const mid = (e.currentTarget as HTMLElement).clientWidth / 2;
 					steer(e.nativeEvent.offsetX < mid ? -1 : 1);
 				}}
 			>
-				<canvas ref={canvasRef} className="h-full w-full" />
+				<canvas ref={canvasRef} className="size-full" />
 			</div>
 		</GameChrome>
 	);

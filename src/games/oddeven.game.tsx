@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useCountdown, useRun } from "./kit";
@@ -73,7 +74,7 @@ export default function OddEven({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-12 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-12 px-6">
 				<div className="text-7xl font-black tracking-wider tabular-nums">
 					{num}
 				</div>

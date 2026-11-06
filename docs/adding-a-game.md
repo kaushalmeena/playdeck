@@ -43,14 +43,14 @@ export default function MyGame({ level, active, onEnd, onPlayingChange }: GamePr
 
 ### `meta`
 
-| Field          | Purpose                                                     |
-| -------------- | ----------------------------------------------------------- |
-| `title`        | Shown on the card and the start overlay                      |
-| `emoji`        | Card icon                                                    |
-| `desc`         | One line under the title on the card                         |
-| `order`        | Canonical position — drives unlock rank, not display order   |
-| `accent`       | Tints the overlay, progress bar and level chip               |
-| `instructions` | How to play, shown before the first run                      |
+| Field          | Purpose                                                    |
+| -------------- | ---------------------------------------------------------- |
+| `title`        | Shown on the card and the start overlay                    |
+| `emoji`        | Card icon                                                  |
+| `desc`         | One line under the title on the card                       |
+| `order`        | Canonical position — drives unlock rank, not display order |
+| `accent`       | Tints the overlay, progress bar and level chip             |
+| `instructions` | How to play, shown before the first run                    |
 
 `order` is the game's rank for [progression
 unlocks](./architecture.md#progression). The feed itself is shuffled each
@@ -59,12 +59,12 @@ becomes playable.
 
 ### Props
 
-| Prop              | Meaning                                                        |
-| ----------------- | -------------------------------------------------------------- |
-| `level`           | This player's level for your game — scale difficulty from it    |
-| `active`          | `false` once the card scrolls away; abandon any live run        |
-| `onEnd`           | Report a finished run                                           |
-| `onPlayingChange` | Tell the feed whether a run owns the screen                     |
+| Prop              | Meaning                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `level`           | This player's level for your game — scale difficulty from it |
+| `active`          | `false` once the card scrolls away; abandon any live run     |
+| `onEnd`           | Report a finished run                                        |
+| `onPlayingChange` | Tell the feed whether a run owns the screen                  |
 
 You rarely call the last two directly — `useRun` and `GameChrome` do it.
 
@@ -88,7 +88,7 @@ Wire the last part up in every game:
 
 ```tsx
 useEffect(() => {
-  if (!active && playing) cancel();
+	if (!active && playing) cancel();
 }, [active, playing, cancel]);
 ```
 
@@ -101,20 +101,20 @@ independently written games look like one product.
 
 ```tsx
 <GameChrome
-  emoji={meta.emoji}
-  title={meta.title}
-  accent={meta.accent}
-  level={level}
-  instructions={meta.instructions}
-  playing={playing}
-  result={result}
-  chips={[`🍏 ${eaten}/${goal}`, `${score} PTS`]}
-  progress={timeLeft / total}
-  onPlay={start}
-  onQuit={cancel}
-  onPlayingChange={onPlayingChange}
+	emoji={meta.emoji}
+	title={meta.title}
+	accent={meta.accent}
+	level={level}
+	instructions={meta.instructions}
+	playing={playing}
+	result={result}
+	chips={[`🍏 ${eaten}/${goal}`, `${score} PTS`]}
+	progress={timeLeft / total}
+	onPlay={start}
+	onQuit={cancel}
+	onPlayingChange={onPlayingChange}
 >
-  {/* your play area */}
+	{/* your play area */}
 </GameChrome>
 ```
 
@@ -124,14 +124,14 @@ Pass `progress` only if your game is timed; omit it and the bar disappears.
 
 From [`src/games/kit.ts`](../src/games/kit.ts):
 
-| Helper                        | Use                                                        |
-| ----------------------------- | ----------------------------------------------------------- |
-| `useRun(onEnd)`               | The run lifecycle above                                     |
-| `useCountdown(playing, secs)` | A timer that restarts with each run; watch for `0`           |
-| `useTimers()`                 | `setTimeout`s that clear themselves on unmount               |
-| `useGameKeys(active, map)`    | Keyboard controls that beat the feed's paging                |
-| `sfx`                         | Sound cues for your game's actions                           |
-| `randInt` `shuffle` `pick`    | Small random helpers                                         |
+| Helper                        | Use                                                |
+| ----------------------------- | -------------------------------------------------- |
+| `useRun(onEnd)`               | The run lifecycle above                            |
+| `useCountdown(playing, secs)` | A timer that restarts with each run; watch for `0` |
+| `useTimers()`                 | `setTimeout`s that clear themselves on unmount     |
+| `useGameKeys(active, map)`    | Keyboard controls that beat the feed's paging      |
+| `sfx`                         | Sound cues for your game's actions                 |
+| `randInt` `shuffle` `pick`    | Small random helpers                               |
 
 ### Sound
 
@@ -140,16 +140,16 @@ and losing already make noise through the chrome and the scorer — what a game
 adds is feedback for its own actions:
 
 ```tsx
-sfx.good();        // a right answer, a matched pair, a cleared wave
-sfx.bad();         // a fumble that does not end the run
-sfx.step();        // a light move: tile flip, lane change, grid step
-sfx.collect();     // picking something up
-sfx.hit();         // landing a hit
-sfx.pop();         // a bubble popping
-sfx.boom();        // an explosion
-sfx.bounce();      // ball or paddle
-sfx.flap();        // thrust or jump
-sfx.merge(value);  // tiles combining — pitch rises with the value
+sfx.good(); // a right answer, a matched pair, a cleared wave
+sfx.bad(); // a fumble that does not end the run
+sfx.step(); // a light move: tile flip, lane change, grid step
+sfx.collect(); // picking something up
+sfx.hit(); // landing a hit
+sfx.pop(); // a bubble popping
+sfx.boom(); // an explosion
+sfx.bounce(); // ball or paddle
+sfx.flap(); // thrust or jump
+sfx.merge(value); // tiles combining — pitch rises with the value
 ```
 
 Every sound is synthesized, so there is nothing to download, and all of them
@@ -165,9 +165,9 @@ noticing that a run started.
 
 ```tsx
 useGameKeys(playing, {
-  ArrowLeft: () => turn(-1, 0),
-  ArrowRight: () => turn(1, 0),
-  Space: flap,
+	ArrowLeft: () => turn(-1, 0),
+	ArrowRight: () => turn(1, 0),
+	Space: flap,
 });
 ```
 
@@ -180,7 +180,7 @@ Scale everything off `level`, and floor it so high levels stay playable
 rather than impossible:
 
 ```ts
-const goal = 5 + level;                          // more to do
+const goal = 5 + level; // more to do
 const windowMs = Math.max(900 - level * 70, 250); // less time to do it
 ```
 

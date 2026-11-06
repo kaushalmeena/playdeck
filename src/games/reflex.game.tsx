@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun } from "./kit";
@@ -133,12 +134,12 @@ export default function ReflexRush({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center">
+			<div className="flex size-full items-center justify-center">
 				<button
 					type="button"
 					onPointerDown={tap}
 					className={clsx(
-						"flex h-[min(64vw,300px)] w-[min(64vw,300px)] cursor-pointer items-center justify-center rounded-full border-2 text-2xl font-black tracking-[0.2em] transition-[background,box-shadow] duration-100",
+						"flex size-[min(64vw,300px)] cursor-pointer items-center justify-center rounded-full border-2 text-2xl font-black tracking-[0.2em] transition-[background,box-shadow] duration-100",
 						padClasses,
 					)}
 				>

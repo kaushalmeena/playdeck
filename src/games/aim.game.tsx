@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useRun, useTimers } from "./kit";
@@ -84,14 +85,14 @@ export default function QuickShot({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="relative h-full w-full overflow-hidden">
+			<div className="relative size-full overflow-hidden">
 				{playing && target && (
 					<button
 						key={target.id}
 						type="button"
 						aria-label="Target"
 						onPointerDown={hit}
-						className="absolute flex h-24 w-24 items-center justify-center rounded-full border-4 border-danger bg-danger/20 text-3xl shadow-[0_0_40px_rgba(255,77,109,0.5)]"
+						className="absolute flex size-24 items-center justify-center rounded-full border-4 border-danger bg-danger/20 text-3xl shadow-[0_0_40px_rgba(255,77,109,0.5)]"
 						style={{
 							left: `${target.x}%`,
 							top: `${target.y}%`,

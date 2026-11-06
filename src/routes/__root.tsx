@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { SITE, seo, structuredData } from "../lib/seo";
 import { themeInitScript } from "../lib/theme";
+
 import appCss from "../styles.css?url";
 
 /** "/" locally, "/<repo>/" on GitHub Pages — always ends in a slash */

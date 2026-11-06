@@ -20,7 +20,7 @@ export function NavArrows({ onPage }: Props) {
 						sfx.press();
 						onPage(dir);
 					}}
-					className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-card/70 text-sm backdrop-blur-md"
+					className="flex size-10 items-center justify-center rounded-full border border-line bg-card/70 text-sm backdrop-blur-md"
 				>
 					{glyph}
 				</button>

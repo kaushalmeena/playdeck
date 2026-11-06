@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from "react";
+
 import type { GameEntry } from "../../games/registry";
 import { CardRail } from "./CardRail";
 import { CardPlaceholder, LockedCard } from "./CardStates";
@@ -50,10 +51,7 @@ function GameCardImpl({
 	}, [mounted, game, Game]);
 
 	return (
-		<section
-			className="relative h-full w-full overflow-hidden"
-			data-game={game.id}
-		>
+		<section className="relative size-full overflow-hidden" data-game={game.id}>
 			{locked ? (
 				<LockedCard game={game} unlockAt={unlockAt} />
 			) : mounted && Game ? (

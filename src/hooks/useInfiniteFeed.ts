@@ -6,6 +6,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { startIndex, virtualCount } from "../lib/feed/loop";
 import { WheelPager } from "../lib/feed/wheel";
 import { sfx } from "../lib/sfx";

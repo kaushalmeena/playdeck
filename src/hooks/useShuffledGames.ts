@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import type { GameEntry } from "../games/registry";
 import { seededShuffle } from "../lib/feed/ordering";
 

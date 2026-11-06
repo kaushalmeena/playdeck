@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { useRun } from "./kit";
@@ -148,19 +149,19 @@ export default function EchoPads({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-5">
+			<div className="flex size-full flex-col items-center justify-center gap-5">
 				<div className="h-5 text-[13px] font-extrabold tracking-[0.3em] text-muted">
 					{playing ? status : ""}
 				</div>
 				<div className="grid grid-cols-2 gap-3.5">
 					{PADS.map((color, i) => (
 						<button
-							// biome-ignore lint/suspicious/noArrayIndexKey: pads are a fixed set
 							key={i}
 							type="button"
+							aria-label={`Pad ${i + 1}`}
 							onPointerDown={() => tap(i)}
 							className={clsx(
-								"h-[min(34vw,150px)] w-[min(34vw,150px)] cursor-pointer rounded-3xl border-2 border-line transition-all duration-100 active:scale-95",
+								"size-[min(34vw,150px)] cursor-pointer rounded-3xl border-2 border-line transition-all duration-100 active:scale-95",
 								lit === i ? "scale-105 opacity-100" : "opacity-75",
 							)}
 							style={{

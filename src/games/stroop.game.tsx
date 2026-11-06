@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { pick, sfx, useCountdown, useRun } from "./kit";
@@ -90,7 +91,7 @@ export default function ColorClash({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-12 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-12 px-6">
 				<div
 					className="text-6xl font-black tracking-[0.15em]"
 					style={{ color: round.ink }}

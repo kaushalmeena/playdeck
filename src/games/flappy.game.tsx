@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useGameKeys, useRun, useThemeColor } from "./kit";
@@ -188,9 +189,9 @@ export default function GlowFlap({
 				type="button"
 				aria-label="Thrust"
 				onPointerDown={flap}
-				className="block h-full w-full cursor-pointer touch-none border-0 bg-transparent p-0"
+				className="block size-full cursor-pointer touch-none border-0 bg-transparent p-0"
 			>
-				<canvas ref={canvasRef} className="h-full w-full" />
+				<canvas ref={canvasRef} className="size-full" />
 			</button>
 		</GameChrome>
 	);

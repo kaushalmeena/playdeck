@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { pick, sfx, shuffle, useCountdown, useRun } from "./kit";
@@ -140,7 +141,7 @@ export default function WordJumble({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-9 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-9 px-6">
 				<div className="text-4xl font-black tracking-[0.35em] text-accent2">
 					{round.scrambled}
 				</div>

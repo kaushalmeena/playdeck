@@ -1,6 +1,7 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useMemo } from "react";
 import { Toaster } from "sonner";
+
 import type { GameEntry } from "../../games/registry";
 import { useFeedReady } from "../../hooks/useFeedReady";
 import { useInfiniteFeed } from "../../hooks/useInfiniteFeed";
@@ -73,7 +74,7 @@ export function GameFeed({
 	if (!ready) return <FeedLoader />;
 
 	return (
-		<div className="relative h-full w-full bg-bg">
+		<div className="relative size-full bg-bg">
 			<Toaster position="top-center" theme={theme} offset={60} />
 
 			<FeedHeader
@@ -92,7 +93,7 @@ export function GameFeed({
 				ref={feed.scrollerRef}
 				onScroll={feed.onScroll}
 				className={clsx(
-					"no-scrollbar h-full w-full snap-y snap-mandatory overscroll-contain",
+					"no-scrollbar size-full snap-y snap-mandatory overscroll-contain",
 					frozen ? "overflow-hidden" : "overflow-y-auto",
 				)}
 			>

@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useRun, useTimers } from "./kit";
@@ -96,7 +97,7 @@ export default function DigitRecall({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-8 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-8 px-6">
 				<div className="flex h-16 items-center text-4xl font-black tracking-[0.3em]">
 					{phase === "show" ? (
 						<span className="text-accent2">{code}</span>

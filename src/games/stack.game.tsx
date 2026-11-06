@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun } from "./kit";
@@ -137,9 +138,9 @@ export default function SkyStack({
 				type="button"
 				aria-label="Drop block"
 				onPointerDown={drop}
-				className="block h-full w-full touch-none border-0 bg-transparent p-0"
+				className="block size-full touch-none border-0 bg-transparent p-0"
 			>
-				<canvas ref={canvasRef} className="h-full w-full" />
+				<canvas ref={canvasRef} className="size-full" />
 			</button>
 		</GameChrome>
 	);

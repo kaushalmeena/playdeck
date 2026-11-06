@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, shuffle, useRun, useTimers } from "./kit";
@@ -106,15 +107,14 @@ export default function FlashCount({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full flex-col items-center justify-center gap-6 px-6">
+			<div className="flex size-full flex-col items-center justify-center gap-6 px-6">
 				<div className="relative h-[46vh] w-full max-w-md rounded-2xl border border-line bg-card/40">
 					{playing &&
 						phase === "show" &&
 						round.dots.map((d, i) => (
 							<span
-								// biome-ignore lint/suspicious/noArrayIndexKey: dots regenerate per round
 								key={`${roundNo}-${i}`}
-								className="absolute h-5 w-5 rounded-full bg-[#ffd24d] shadow-[0_0_14px_rgba(255,210,77,0.8)]"
+								className="absolute size-5 rounded-full bg-[#ffd24d] shadow-[0_0_14px_rgba(255,210,77,0.8)]"
 								style={{ left: `${d.x}%`, top: `${d.y}%` }}
 							/>
 						))}

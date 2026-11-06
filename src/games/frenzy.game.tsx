@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useCountdown, useRun } from "./kit";
@@ -66,11 +67,11 @@ export default function TapFrenzy({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center">
+			<div className="flex size-full items-center justify-center">
 				<button
 					type="button"
 					onPointerDown={tap}
-					className="flex h-[min(70vw,320px)] w-[min(70vw,320px)] items-center justify-center rounded-full border-2 border-danger bg-danger/15 text-6xl font-black text-danger shadow-[0_0_80px_rgba(255,77,109,0.35)]"
+					className="flex size-[min(70vw,320px)] items-center justify-center rounded-full border-2 border-danger bg-danger/15 text-6xl font-black text-danger shadow-[0_0_80px_rgba(255,77,109,0.35)]"
 				>
 					{playing ? taps : "TAP"}
 				</button>

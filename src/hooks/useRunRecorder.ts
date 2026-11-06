@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import type { GameEntry } from "../games/registry";
 import { celebrateDaily, celebrateLevelUp } from "../lib/celebrate";
 import { DAILY_BONUS } from "../lib/daily";

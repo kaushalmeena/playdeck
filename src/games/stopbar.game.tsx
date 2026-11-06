@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { randInt, sfx, useRun } from "./kit";
@@ -105,7 +106,7 @@ export default function PerfectStop({
 				type="button"
 				aria-label="Stop the cursor"
 				onPointerDown={stop}
-				className="flex h-full w-full flex-col items-center justify-center gap-10 border-0 bg-transparent px-8"
+				className="flex size-full flex-col items-center justify-center gap-10 border-0 bg-transparent px-8"
 			>
 				<div className="relative h-5 w-full max-w-md rounded-full border border-line bg-card">
 					{/* target zone */}

@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, shuffle, useCountdown, useRun } from "./kit";
@@ -74,7 +75,7 @@ export default function NumberOrder({
 			onQuit={cancel}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center px-4">
+			<div className="flex size-full items-center justify-center px-4">
 				<div className="grid w-[min(88vw,420px)] grid-cols-4 gap-2.5">
 					{tiles.map((n) => (
 						<button

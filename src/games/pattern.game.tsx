@@ -1,5 +1,6 @@
-import clsx from "clsx";
+import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, shuffle, useRun, useTimers } from "./kit";
@@ -98,7 +99,7 @@ export default function PatternEcho({
 			}}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center px-6">
+			<div className="flex size-full items-center justify-center px-6">
 				<div
 					className="grid gap-2.5"
 					style={{
@@ -113,6 +114,7 @@ export default function PatternEcho({
 							<button
 								key={i}
 								type="button"
+								aria-label={`Cell ${i + 1}`}
 								onPointerDown={() => tap(i)}
 								className={clsx(
 									"aspect-square rounded-xl border-2",

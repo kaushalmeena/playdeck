@@ -3,6 +3,7 @@ import {
 	Outlet,
 	useRouterState,
 } from "@tanstack/react-router";
+
 import { GameFeed } from "../components/feed/GameFeed";
 import { GAMES } from "../games/registry";
 import { tabForPath } from "../lib/feed/ordering";
