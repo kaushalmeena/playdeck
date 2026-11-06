@@ -1,0 +1,237 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Quick Shot" />
+		<meta name="playdeck:emoji" content="🏹" />
+		<meta
+			name="playdeck:desc"
+			content="Targets shrink fast. Hit every one. Nail the bullseye."
+		/>
+		<meta name="playdeck:order" content="18" />
+		<meta name="playdeck:accent" content="#ff4d6d" />
+		<meta
+			name="playdeck:instructions"
+			content="Targets appear one at a time and shrink away. Hit the quota — if a single target vanishes, the run is over. Dead-centre hits are a BULLSEYE for bonus points, and back-to-back bullseyes stack."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: none;
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			.target {
+				position: absolute;
+				width: 104px;
+				height: 104px;
+				border-radius: 50%;
+				pointer-events: none; /* hits are measured from the document listener */
+				background: radial-gradient(
+					circle,
+					#ffd24d 0 14%,
+					#ff4d6d 15% 32%,
+					#ffffff 33% 50%,
+					#ff4d6d 51% 68%,
+					#ffffff 69% 84%,
+					#ff4d6d 85% 100%
+				);
+				box-shadow: 0 0 40px rgba(255, 77, 109, 0.55);
+				animation-name: target-shrink;
+				animation-timing-function: linear;
+				animation-fill-mode: forwards;
+			}
+			/* a hit target bursts outward instead of popping out of existence */
+			.target.hit {
+				animation: target-hit 0.18s ease-out forwards;
+			}
+
+			/* ported from the app stylesheet */
+			@keyframes target-shrink {
+				from {
+					transform: translate(-50%, -50%) scale(1);
+				}
+				to {
+					transform: translate(-50%, -50%) scale(0.15);
+				}
+			}
+			@keyframes target-hit {
+				to {
+					transform: translate(-50%, -50%) scale(1.6);
+					opacity: 0;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<script>
+			const RED = "#ff4d6d",
+				GOLD = "#ffd24d";
+			const HIT_SLOP = 10; // generous edge for thumbs
+
+			let state = "idle",
+				endTimer = 0,
+				spawnTimer = 0,
+				expireTimer = 0;
+			let goal = 0,
+				life = 0,
+				hits = 0,
+				score = 0,
+				bulls = 0,
+				streak = 0,
+				bestStreak = 0;
+			let target = null; // { el, born }
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`🎯 ${hits}/${goal}`,
+						streak > 1 ? `🔥 ×${streak}` : `◎ ${bulls}`,
+					],
+				});
+			}
+
+			function clearTimers() {
+				clearTimeout(endTimer);
+				clearTimeout(spawnTimer);
+				clearTimeout(expireTimer);
+			}
+
+			function removeTarget() {
+				if (target) target.el.remove();
+				target = null;
+			}
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				goal = Math.min(20 + L * 2, 36);
+				life = Math.max(1600 - L * 80, 700);
+				hits = score = bulls = streak = bestStreak = 0;
+				clearTimers();
+				removeTarget();
+				state = "run";
+				hud();
+				spawnTimer = setTimeout(spawn, 250);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimers();
+				removeTarget();
+			});
+
+			function spawn() {
+				if (state !== "run") return;
+				const W = innerWidth,
+					H = innerHeight;
+				// keep clear of the HUD at the top and the caption at the bottom
+				const x = 60 + Math.random() * Math.max(W - 120, 1);
+				const y = 140 + Math.random() * Math.max(H - 280, 1);
+				const el = document.createElement("div");
+				el.className = "target";
+				el.style.left = `${x}px`;
+				el.style.top = `${y}px`;
+				el.style.animationDuration = `${life}ms`;
+				document.body.appendChild(el);
+				target = { el, x, y, born: performance.now() };
+				expireTimer = setTimeout(escaped, life);
+			}
+
+			// The live radius follows the CSS shrink from 1 → 0.15 over `life`.
+			function radiusNow() {
+				const k = Math.min((performance.now() - target.born) / life, 1);
+				return 52 * (1 - 0.85 * k);
+			}
+
+			document.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || state !== "run" || !target) return;
+				const r = radiusNow();
+				const d = Math.hypot(e.clientX - target.x, e.clientY - target.y);
+				if (d > r + HIT_SLOP) {
+					// a stray shot only costs the bullseye streak
+					streak = 0;
+					playdeck.sfx("step");
+					playdeck.pop(e.clientX, e.clientY - 16, "MISS", "#9a9ab0");
+					hud();
+					return;
+				}
+				hit(d / r, r);
+			});
+
+			function hit(rel, r) {
+				clearTimeout(expireTimer);
+				const { x, y, el } = target;
+				target = null;
+				// freeze the current size so the hit animation starts from it
+				el.style.transform = `translate(-50%, -50%) scale(${r / 52})`;
+				el.classList.add("hit");
+				setTimeout(() => el.remove(), 200);
+				hits += 1;
+				// faster hits (bigger target left) are worth more
+				const speed = Math.round((r / 52) * 6);
+				let pts = 5 + speed;
+				if (rel < 0.3) {
+					bulls += 1;
+					streak += 1;
+					bestStreak = Math.max(bestStreak, streak);
+					pts += 8 * Math.min(streak, 5);
+					playdeck.sfx("merge", 2 ** Math.min(streak + 2, 10));
+					playdeck.burst(x, y, GOLD, 20);
+					playdeck.pop(
+						x,
+						y - 30,
+						streak > 1 ? `BULLSEYE ×${streak}` : "BULLSEYE",
+						GOLD,
+					);
+					playdeck.pop(x, y + 6, `+${pts}`, GOLD);
+					if (streak >= 3) playdeck.shake(1);
+				} else {
+					streak = 0;
+					playdeck.sfx("hit");
+					playdeck.burst(x, y, RED, 10);
+					playdeck.pop(x, y - 24, `+${pts}`, RED);
+				}
+				score += pts;
+				hud();
+				if (hits >= goal) return win();
+				spawnTimer = setTimeout(spawn, 140);
+			}
+
+			function escaped() {
+				if (state !== "run" || !target) return;
+				state = "dying";
+				const { x, y } = target;
+				removeTarget();
+				playdeck.sfx("bad");
+				playdeck.shake(2);
+				playdeck.burst(x, y, "#9a9ab0", 16);
+				playdeck.pop(x, y - 20, "ESCAPED", RED);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Escaped at ${hits}/${goal}`);
+				}, 500);
+			}
+
+			function win() {
+				state = "won";
+				score += 30;
+				playdeck.flash(GOLD);
+				playdeck.sfx("good");
+				playdeck.pop(innerWidth / 2, innerHeight / 2, "SHARPSHOOTER!", GOLD);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						bulls
+							? `${bulls} bullseye${bulls > 1 ? "s" : ""}${bestStreak > 1 ? ` · best ×${bestStreak}` : ""}`
+							: "Every target down",
+					);
+				}, 350);
+			}
+		</script>
+	</body>
+</html>
