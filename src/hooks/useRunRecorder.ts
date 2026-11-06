@@ -42,7 +42,10 @@ export function useRunRecorder(
 	record.current = (id, won, raw) => {
 		const mult = comboMultiplier(comboRef.current);
 		const points = Math.round(raw * mult);
+		const previousBest = store.getSnapshot().best[id] ?? 0;
 		const level = store.recordEnd(id, won, points);
+		// only once there is a best to beat — the first run is not news
+		const newBest = previousBest > 0 && points > previousBest;
 
 		comboRef.current = won ? comboRef.current + 1 : 0;
 		setCombo(comboRef.current);
@@ -54,7 +57,12 @@ export function useRunRecorder(
 			toast.success(`⬆ Level ${level} unlocked · +${points} pts${bonus}`);
 		} else {
 			sfx.lose();
-			if (points > 0) toast(`+${points} pts`);
+			if (points > 0 && !newBest) toast(`+${points} pts`);
+		}
+
+		if (newBest) {
+			if (!won) celebrateLevelUp();
+			toast.success(`🏆 New best · ${points} pts (was ${previousBest})`);
 		}
 
 		if (
