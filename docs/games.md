@@ -41,5 +41,6 @@ raises it by one.
 | 🏓 Keep Up      | Don't let the ball drop. It keeps getting faster.             | More bounces required, faster start    |
 | ⚖️ Odd · Even   | A number flashes. Call its parity before it's gone.           | More rounds, less time each            |
 | 🪐 Orbit Dash   | Circle the ring. Tap to reverse. Dodge the red arcs.          | Faster orbit, more arcs                |
+| 💥 Chain Burst  | One tap sets off a blast. Every orb it touches explodes too.  | Higher quota, faster orbs              |
 
 Want to add one? See [Adding a Game](./adding-a-game.md).

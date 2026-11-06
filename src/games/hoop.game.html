@@ -1,0 +1,489 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Hoop Flick" />
+		<meta name="playdeck:emoji" content="🏀" />
+		<meta name="playdeck:desc" content="Flick. Arc. Swish. Heat up." />
+		<meta name="playdeck:order" content="37" />
+		<meta name="playdeck:accent" content="#ff8a3d" />
+		<meta
+			name="playdeck:instructions"
+			content="Pull back from the ball and let go (or swipe up) to shoot. Sink the quota before time runs out — back-to-back baskets heat you up."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#ff8a3d";
+			const BOARD = "#00e5ff";
+			const TOTAL = 20; // seconds per run
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			// court metrics, all derived from the viewport in layout()
+			let S = 1,
+				R = 13,
+				RIM = 34,
+				RR = 4,
+				BH = 72,
+				G = 1600,
+				restY = 0,
+				yMin = 0,
+				yMax = 0;
+			let raf = 0,
+				live = false,
+				level = 1,
+				goal = 5;
+			let baskets = 0,
+				score = 0,
+				streak = 0,
+				maxStreak = 0,
+				swishes = 0,
+				shots = 0;
+			let timeLeft = TOTAL,
+				hudT = 0,
+				respawnT = 0,
+				drag = null,
+				trail = [];
+			const hoop = {
+				x: 0,
+				y: 0,
+				ty: 0,
+				t: 0,
+				ph: 0,
+				off: 0,
+				side: 1,
+				wig: 0,
+				retarget: 0,
+			};
+			const ball = {
+				x: 0,
+				y: 0,
+				vx: 0,
+				vy: 0,
+				rot: 0,
+				state: "rest",
+				touched: false,
+				scored: false,
+				age: 0,
+				pop: 1,
+			};
+
+			const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+			function layout() {
+				S = clamp(Math.min(W / 420, H / 760), 0.65, 1.5);
+				R = 13 * S;
+				RIM = 34 * S;
+				RR = 4 * S;
+				BH = 72 * S;
+				G = 1600 * S;
+				restY = H - 80 - 46 * S; // keep the caption strip clear
+				yMin = 90 + BH + 14; // backboard top stays under the HUD
+				yMax = Math.max(yMin, Math.min(H * 0.48, restY - 230 * S));
+				hoop.y = clamp(hoop.y, yMin, yMax);
+				hoop.ty = clamp(hoop.ty, yMin, yMax);
+				if (ball.state === "rest") ((ball.x = W / 2), (ball.y = restY));
+			}
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				layout();
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			function hud() {
+				const chips = [`🏀 ${baskets}/${goal}`, `${Math.ceil(timeLeft)}s`];
+				if (streak >= 2) chips.push(`🔥 ×${streak}`);
+				playdeck.hud({ chips, progress: timeLeft / TOTAL });
+			}
+
+			function respawn() {
+				Object.assign(ball, {
+					x: W / 2,
+					y: restY,
+					vx: 0,
+					vy: 0,
+					state: "rest",
+					touched: false,
+					scored: false,
+					age: 0,
+					pop: 0,
+				});
+				trail = [];
+			}
+
+			playdeck.onStart(({ level: lv }) => {
+				level = lv;
+				goal = Math.min(4 + level, 10);
+				baskets = score = streak = maxStreak = swishes = shots = 0;
+				timeLeft = TOTAL;
+				hudT = respawnT = 0;
+				drag = null;
+				const base = clamp(H * 0.33, yMin, yMax);
+				Object.assign(hoop, { y: base, ty: base, t: 0, wig: 0, retarget: 3 });
+				hoop.ph = Math.random() * Math.PI * 2;
+				hoop.off = (Math.random() < 0.5 ? -1 : 1) * Math.min(W * 0.2, 110 * S);
+				hoop.x = W / 2 + hoop.off;
+				hoop.side = Math.sign(hoop.off);
+				respawn();
+				hud();
+				live = true;
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.05);
+					last = now;
+					// fixed small substeps so a fast ball cannot tunnel through the rim
+					const n = Math.ceil(dt / 0.008);
+					for (let i = 0; i < n && live; i++) step(dt / n);
+					if (!live) return;
+					draw();
+					raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				live = false;
+				drag = null;
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			// Launch velocity: pulling down = slingshot (fire opposite), dragging up = swipe (fire along).
+			function launchVel(d) {
+				let dx = d.x - d.sx,
+					dy = d.y - d.sy;
+				if (dy > 0) ((dx = -dx), (dy = -dy));
+				const vmax = Math.sqrt(2 * G * (restY - 40)) * 1.05;
+				const k = 10; // ~100px of pull reaches a typical hoop, even on short screens
+				const len = Math.hypot(dx, dy) * k;
+				const f = len > vmax ? vmax / len : 1;
+				return { vx: dx * k * f, vy: dy * k * f, len: Math.hypot(dx, dy) };
+			}
+
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || !live || ball.state !== "rest" || drag) return;
+				canvas.setPointerCapture(e.pointerId);
+				drag = {
+					id: e.pointerId,
+					sx: e.clientX,
+					sy: e.clientY,
+					x: e.clientX,
+					y: e.clientY,
+				};
+			});
+			canvas.addEventListener("pointermove", (e) => {
+				if (drag && e.pointerId === drag.id)
+					((drag.x = e.clientX), (drag.y = e.clientY));
+			});
+			function release(e) {
+				if (!drag || e.pointerId !== drag.id) return;
+				const v = launchVel(drag);
+				drag = null;
+				if (!playdeck.running || !live || ball.state !== "rest" || v.len < 18)
+					return;
+				Object.assign(ball, { vx: v.vx, vy: v.vy, state: "fly" });
+				shots += 1;
+				playdeck.sfx("flap");
+			}
+			canvas.addEventListener("pointerup", release);
+			canvas.addEventListener("pointercancel", (e) => {
+				if (drag && e.pointerId === drag.id) drag = null;
+			});
+
+			// Circle-vs-ball contact; returns the impact speed (0 if no hit).
+			function bump(cx, cy, rad, rest) {
+				const dx = ball.x - cx,
+					dy = ball.y - cy;
+				const d = Math.hypot(dx, dy),
+					min = R + rad;
+				if (d >= min || d === 0) return 0;
+				const nx = dx / d,
+					ny = dy / d;
+				ball.x = cx + nx * min;
+				ball.y = cy + ny * min;
+				const vn = ball.vx * nx + ball.vy * ny;
+				if (vn >= 0) return 0;
+				ball.vx -= (1 + rest) * vn * nx;
+				ball.vy -= (1 + rest) * vn * ny;
+				return -vn;
+			}
+
+			function moveHoop(dt) {
+				hoop.t += dt;
+				if (level >= 2) {
+					const amp = Math.max(
+						0,
+						Math.min(W / 2 - RIM - 40, (90 + 25 * Math.min(level, 6)) * S),
+					);
+					const w = Math.min(0.7 + 0.22 * (level - 2), 2);
+					hoop.x = W / 2 + amp * Math.sin(hoop.t * w + hoop.ph);
+				} else
+					hoop.x =
+						W / 2 + clamp(hoop.off, -(W / 2 - RIM - 40), W / 2 - RIM - 40);
+				if (level >= 4 && (hoop.retarget -= dt) <= 0) {
+					hoop.ty = yMin + Math.random() * (yMax - yMin);
+					hoop.retarget = 2.5 + Math.random() * 1.5;
+				}
+				hoop.y += (hoop.ty - hoop.y) * Math.min(1, dt * 2);
+				// backboard sits on the far side from the shooter, with hysteresis at centre
+				if (hoop.x < W / 2 - 24 * S) hoop.side = -1;
+				else if (hoop.x > W / 2 + 24 * S) hoop.side = 1;
+				hoop.wig *= Math.exp(-dt * 4);
+			}
+
+			function step(dt) {
+				timeLeft -= dt;
+				moveHoop(dt);
+				ball.pop = Math.min(1, ball.pop + dt * 6);
+				if (respawnT > 0 && (respawnT -= dt) <= 0) respawn();
+				if (ball.state === "fly") flyBall(dt);
+				if ((hudT -= dt) <= 0) ((hudT = 0.25), hud());
+				if (baskets >= goal) return finish(true);
+				if (timeLeft <= 0) return finish(false);
+			}
+
+			function flyBall(dt) {
+				const py = ball.y;
+				ball.vy += G * dt;
+				ball.x += ball.vx * dt;
+				ball.y += ball.vy * dt;
+				ball.rot += (ball.vx * dt) / R;
+				ball.age += dt;
+				const lx = hoop.x - RIM,
+					rx = hoop.x + RIM;
+				const rimHit = Math.max(
+					bump(lx, hoop.y, RR, 0.55),
+					bump(rx, hoop.y, RR, 0.55),
+				);
+				const bx = hoop.x + hoop.side * (RIM + 6 * S);
+				const by = clamp(ball.y, hoop.y - BH, hoop.y + 14 * S);
+				const boardHit = bump(bx, by, 2 * S, 0.5);
+				if (rimHit > 120) playdeck.sfx("bounce");
+				if (boardHit > 120) playdeck.sfx("hit");
+				if (rimHit || boardHit) ball.touched = true;
+				// basket: crossing the rim line downward, between the rim ends
+				if (
+					!ball.scored &&
+					ball.vy > 0 &&
+					py < hoop.y &&
+					ball.y >= hoop.y &&
+					ball.x > lx + RR &&
+					ball.x < rx - RR
+				)
+					score_();
+				trail.push({ x: ball.x, y: ball.y });
+				if (trail.length > 14) trail.shift();
+				const gone =
+					ball.y > H + R * 2 ||
+					ball.x < -R * 3 ||
+					ball.x > W + R * 3 ||
+					ball.age > 5;
+				if (gone) {
+					if (!ball.scored) {
+						if (streak >= 2)
+							playdeck.pop(W / 2, restY - 60 * S, "heat lost", "#8fa3b8");
+						streak = 0;
+						hud();
+					}
+					ball.state = "gone";
+					if (respawnT <= 0) respawnT = 0.3;
+				}
+			}
+
+			function score_() {
+				ball.scored = true;
+				const swish = !ball.touched;
+				streak += 1;
+				maxStreak = Math.max(maxStreak, streak);
+				const pts = (swish ? 3 : 2) + (streak - 1); // +1 per heat level
+				score += pts;
+				baskets += 1;
+				hoop.wig = 1;
+				const x = hoop.x,
+					y = hoop.y + 10 * S;
+				if (swish) {
+					swishes += 1;
+					playdeck.sfx("good");
+					playdeck.pop(x, y - 40 * S, `SWISH! +${pts}`, ACCENT);
+					playdeck.burst(x, y, ACCENT, 18);
+				} else {
+					playdeck.sfx("collect");
+					playdeck.pop(x, y - 40 * S, `+${pts}`, "#ffd24d");
+				}
+				if (streak >= 3) playdeck.shake(1);
+				if (ball.vy > 600 * S) ball.vy = 600 * S; // the net slows it down
+				ball.vx *= 0.3;
+				respawnT = 0.3;
+				hud();
+			}
+
+			function finish(won) {
+				live = false;
+				cancelAnimationFrame(raf);
+				const note = won
+					? maxStreak >= 3
+						? `On fire — ${maxStreak} in a row 🔥`
+						: swishes
+							? `${swishes} swish${swishes > 1 ? "es" : ""}, nothing but net`
+							: "Buckets!"
+					: baskets === 0
+						? "Brick city"
+						: `${goal - baskets} short — so close`;
+				playdeck.end(
+					won,
+					score * 10 + (won ? 50 + Math.ceil(Math.max(timeLeft, 0)) * 5 : 0),
+					note,
+				);
+			}
+
+			function glow(c, b) {
+				ctx.shadowColor = c;
+				ctx.shadowBlur = b;
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				const lx = hoop.x - RIM,
+					rx = hoop.x + RIM,
+					y = hoop.y;
+				// backboard
+				const bx = hoop.x + hoop.side * (RIM + 6 * S);
+				glow(BOARD, 14);
+				ctx.strokeStyle = BOARD;
+				ctx.lineWidth = 4 * S;
+				ctx.lineCap = "round";
+				ctx.beginPath();
+				ctx.moveTo(bx, y - BH);
+				ctx.lineTo(bx, y + 14 * S);
+				ctx.stroke();
+				// net: diamond mesh tapering down, wiggles after a basket
+				ctx.shadowBlur = 0;
+				ctx.strokeStyle = "rgba(255,255,255,0.55)";
+				ctx.lineWidth = 1.5 * S;
+				const bw = RIM * 0.55,
+					ny = y + 36 * S;
+				const wob = (i) => hoop.wig * 6 * S * Math.sin(hoop.t * 28 + i);
+				ctx.beginPath();
+				for (let i = 0; i <= 4; i++) {
+					const tx = lx + (i / 4) * 2 * RIM;
+					ctx.moveTo(tx, y);
+					ctx.lineTo(hoop.x - bw + (i / 4) * 2 * bw + wob(i), ny);
+					if (i < 4) {
+						ctx.moveTo(tx, y);
+						ctx.lineTo(hoop.x - bw + ((i + 1) / 4) * 2 * bw + wob(i + 1), ny);
+					}
+				}
+				ctx.stroke();
+				// rim
+				glow(ACCENT, 16);
+				ctx.strokeStyle = ACCENT;
+				ctx.lineWidth = 4 * S;
+				ctx.beginPath();
+				ctx.moveTo(lx, y);
+				ctx.lineTo(rx, y);
+				ctx.lineTo(bx, y);
+				ctx.stroke();
+				// flame trail while heated
+				ctx.shadowBlur = 0;
+				if (streak >= 2 && ball.state === "fly")
+					trail.forEach((p, i) => {
+						const k = i / trail.length;
+						ctx.globalAlpha = k * 0.8;
+						ctx.fillStyle = k > 0.6 ? "#ffd24d" : "#ff5c3d";
+						ctx.beginPath();
+						ctx.arc(p.x, p.y, R * (0.3 + k * 0.7), 0, Math.PI * 2);
+						ctx.fill();
+					});
+				ctx.globalAlpha = 1;
+				if (ball.state !== "gone") drawBall();
+				if (drag) drawAim();
+				if (streak >= 2) {
+					ctx.fillStyle = "#ffd24d";
+					ctx.font = `800 ${16 * S}px system-ui, sans-serif`;
+					ctx.textAlign = "center";
+					ctx.fillText(`🔥 HEAT ×${streak}`, W / 2, restY - 40 * S);
+				} else if (shots === 0 && !drag) {
+					ctx.fillStyle = "rgba(255,255,255,0.6)";
+					ctx.font = `600 ${13 * S}px system-ui, sans-serif`;
+					ctx.textAlign = "center";
+					ctx.fillText("pull back & release", W / 2, restY - 34 * S);
+				}
+			}
+
+			function drawBall() {
+				const r = R * (0.4 + 0.6 * ball.pop);
+				ctx.save();
+				ctx.translate(ball.x, ball.y);
+				ctx.rotate(ball.rot);
+				glow(streak >= 2 ? "#ffd24d" : ACCENT, 18);
+				ctx.fillStyle = ACCENT;
+				ctx.beginPath();
+				ctx.arc(0, 0, r, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.shadowBlur = 0;
+				// seams
+				ctx.strokeStyle = "rgba(40,16,0,0.7)";
+				ctx.lineWidth = 1.5 * S;
+				ctx.beginPath();
+				ctx.moveTo(-r, 0);
+				ctx.lineTo(r, 0);
+				ctx.moveTo(0, -r);
+				ctx.lineTo(0, r);
+				ctx.moveTo(-r * 0.6, -r * 0.8);
+				ctx.quadraticCurveTo(-r * 0.15, 0, -r * 0.6, r * 0.8);
+				ctx.moveTo(r * 0.6, -r * 0.8);
+				ctx.quadraticCurveTo(r * 0.15, 0, r * 0.6, r * 0.8);
+				ctx.stroke();
+				ctx.restore();
+			}
+
+			function drawAim() {
+				const v = launchVel(drag);
+				const p = Math.min(v.len / 160, 1);
+				ctx.strokeStyle = `rgba(255,138,61,${0.3 + p * 0.5})`;
+				ctx.lineWidth = 3 * S;
+				ctx.beginPath();
+				ctx.moveTo(ball.x, ball.y);
+				ctx.lineTo(
+					ball.x + (v.vx / 1000) * 50 * S,
+					ball.y + (v.vy / 1000) * 50 * S,
+				);
+				ctx.stroke();
+				if (level > 2) return;
+				// short dotted preview of the arc — training wheels for early levels
+				ctx.fillStyle = "rgba(255,255,255,0.75)";
+				for (let t = 0.03; t <= 0.27; t += 0.03) {
+					ctx.beginPath();
+					ctx.arc(
+						ball.x + v.vx * t,
+						ball.y + v.vy * t + 0.5 * G * t * t,
+						2.5 * S,
+						0,
+						Math.PI * 2,
+					);
+					ctx.fill();
+				}
+			}
+		</script>
+	</body>
+</html>

@@ -1,0 +1,369 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Gravity Flip" />
+		<meta name="playdeck:emoji" content="🔃" />
+		<meta
+			name="playdeck:desc"
+			content="Tap to flip gravity. Dodge the spikes. Reach the end."
+		/>
+		<meta name="playdeck:order" content="35" />
+		<meta name="playdeck:accent" content="#3dffa0" />
+		<meta
+			name="playdeck:instructions"
+			content="Your cube runs on its own. Tap to flip between floor and ceiling — dodge the spikes, grab the diamonds, make it to the finish."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#3dffa0",
+				SPIKE = "#ff4d6d",
+				GOLD = "#ffd24d";
+			const S = 22, // cube size
+				G = 2800, // gravity, px/s²
+				SPIKE_H = 24;
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				floorY = 0,
+				ceilY = 0,
+				cubeX = 0;
+			let raf = 0,
+				state = "idle",
+				endTimer = 0;
+			let speed = 0,
+				goal = 0,
+				dist = 0,
+				coins = 0,
+				hudT = 0;
+			let spikes = [],
+				gems = [],
+				trail = [];
+			// cube: y, vertical velocity, gravity direction (1 = floor, -1 = ceiling)
+			let y = 0,
+				vy = 0,
+				grav = 1,
+				sx = 1,
+				sy = 1,
+				rot = 0;
+
+			function layout() {
+				const ch = Math.max(160, Math.min(260, H - 300));
+				floorY = H / 2 + ch / 2;
+				ceilY = H / 2 - ch / 2;
+				cubeX = Math.max(60, W * 0.25);
+			}
+			function rest(g) {
+				return g > 0 ? floorY - S / 2 : ceilY + S / 2;
+			}
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				layout();
+				if (state === "run") y = rest(grav);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			// Lay out the whole course up front. Every gap is sized from the real
+			// flip physics plus a reaction allowance, so no pattern is impossible.
+			function buildCourse(level) {
+				spikes = [];
+				gems = [];
+				const tFlip = Math.sqrt((2 * (floorY - ceilY - S)) / G);
+				const tLeave = Math.sqrt((2 * (SPIKE_H + 4)) / G); // clear a spike's height
+				const react = Math.max(0.5 - level * 0.03, 0.26);
+				const spread = Math.max(0.6 - level * 0.05, 0.15);
+				const pairChance = level < 2 ? 0 : Math.min(0.08 + level * 0.04, 0.3);
+				let x = speed * 1.6,
+					side = 1,
+					lastPair = false;
+				while (x < goal - speed) {
+					const w = 24 + Math.random() * 14;
+					spikes.push({ x, side, w, minClear: Infinity, passed: false });
+					// Decide the next spike, then the time the player gets to react.
+					const pair = !lastPair && Math.random() < pairChance;
+					const flipNext = pair || Math.random() < 0.6;
+					const t = pair
+						? 0.22 + tLeave + react * 0.5 // quick double-flip, still humanly doable
+						: flipNext
+							? tFlip + react + Math.random() * spread
+							: 0.12 + Math.random() * spread;
+					const gap = w + S + speed * t;
+					// Diamonds sit in roomy gaps, on either lane or dead centre.
+					if (gap > 140 && Math.random() < 0.55) {
+						const lane = [rest(1), rest(-1), (floorY + ceilY) / 2];
+						gems.push({ x: x + gap / 2, y: lane[(Math.random() * 3) | 0] });
+					}
+					x += gap;
+					if (flipNext) side = -side;
+					lastPair = pair;
+				}
+			}
+
+			function hud() {
+				const pct = Math.min(Math.floor((dist / goal) * 100), 100);
+				playdeck.hud({
+					chips: [`📏 ${pct}%`, `💎 ${coins}`],
+					progress: Math.min(dist / goal, 1),
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				speed = Math.min(240 + L * 18, 420);
+				goal = speed * Math.min(15 + L * 1.2, 24);
+				dist = coins = hudT = 0;
+				grav = 1;
+				y = rest(1);
+				vy = rot = 0;
+				sx = sy = 1;
+				trail = [];
+				buildCourse(L);
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function flip(to) {
+				if (!playdeck.running || state !== "run" || to === grav) return;
+				grav = to;
+				sx = 0.7;
+				sy = 1.35;
+				playdeck.sfx("flap");
+			}
+			document.addEventListener("pointerdown", () => flip(-grav));
+			document.addEventListener("keydown", (e) => {
+				const to = { Space: -grav, ArrowUp: -1, ArrowDown: 1 }[e.code];
+				if (to === undefined) return;
+				e.preventDefault();
+				flip(to);
+			});
+
+			function step(dt) {
+				// squash/stretch eases back; cube spins to sit "upright" on its surface
+				sx += (1 - sx) * Math.min(dt * 12, 1);
+				sy += (1 - sy) * Math.min(dt * 12, 1);
+				rot += ((grav > 0 ? 0 : Math.PI) - rot) * Math.min(dt * 14, 1);
+				if (state !== "run") return;
+				dist += speed * dt;
+				vy += G * grav * dt;
+				y += vy * dt;
+				const r = rest(grav);
+				if ((grav > 0 && y >= r) || (grav < 0 && y <= r)) {
+					if (Math.abs(vy) > 300) {
+						sx = 1.3;
+						sy = 0.72;
+						playdeck.sfx("step");
+					}
+					y = r;
+					vy = 0;
+				}
+				trail.push({ wx: dist, y });
+				if (trail.length > 9) trail.shift();
+
+				for (const s of spikes) {
+					const sxp = cubeX + s.x - dist; // spike left edge on screen
+					if (sxp > cubeX + S / 2 || s.passed) continue;
+					if (sxp + s.w < cubeX - S / 2) {
+						s.passed = true;
+						if (s.minClear < 16) {
+							playdeck.pop(cubeX, y - 26 * s.side, "CLOSE!", ACCENT);
+						}
+						continue;
+					}
+					// Triangle height at the point of the overlap nearest its tip.
+					const cx = sxp + s.w / 2;
+					const px = Math.max(cubeX - S / 2, Math.min(cx, cubeX + S / 2));
+					const hh = SPIKE_H * (1 - Math.abs(px - cx) / (s.w / 2)) - 3;
+					const gapToTip =
+						s.side > 0
+							? floorY - SPIKE_H - (y + S / 2)
+							: y - S / 2 - (ceilY + SPIKE_H);
+					s.minClear = Math.min(s.minClear, gapToTip);
+					const hit =
+						s.side > 0 ? y + S / 2 > floorY - hh : y - S / 2 < ceilY + hh;
+					if (hit) return die();
+				}
+
+				for (const g of gems) {
+					if (g.got) continue;
+					const gx = cubeX + g.x - dist;
+					if (Math.abs(gx - cubeX) < 18 && Math.abs(g.y - y) < 20) {
+						g.got = true;
+						coins += 1;
+						playdeck.sfx("collect");
+						playdeck.pop(gx, g.y - 16, "+5", GOLD);
+						playdeck.burst(gx, g.y, GOLD, 10);
+						hud();
+					}
+				}
+
+				hudT += dt;
+				if (hudT > 0.25) {
+					hudT = 0;
+					hud();
+				}
+				if (dist >= goal) win();
+			}
+
+			function score(won) {
+				return (
+					Math.floor(Math.min(dist / goal, 1) * 100 * 2) +
+					coins * 5 +
+					(won ? 60 : 0)
+				);
+			}
+
+			function die() {
+				state = "dying";
+				playdeck.sfx("boom");
+				playdeck.shake(2);
+				playdeck.burst(cubeX, y, SPIKE, 30);
+				const pct = Math.floor((dist / goal) * 100);
+				// let the explosion play before the result card covers it
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score(false), `Spiked at ${pct}%`);
+				}, 400);
+			}
+
+			function win() {
+				dist = goal;
+				state = "idle";
+				hud();
+				playdeck.flash(ACCENT);
+				playdeck.sfx("good");
+				playdeck.end(
+					true,
+					score(true),
+					coins ? `Clean run! 💎×${coins}` : "Clean run!",
+				);
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				// corridor rails with scrolling ticks for a sense of speed
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 12;
+				ctx.strokeStyle = ACCENT;
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.moveTo(0, floorY);
+				ctx.lineTo(W, floorY);
+				ctx.moveTo(0, ceilY);
+				ctx.lineTo(W, ceilY);
+				ctx.stroke();
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 0.35;
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				for (let k = -(dist % 48); k < W; k += 48) {
+					ctx.moveTo(k, floorY + 6);
+					ctx.lineTo(k - 10, floorY + 16);
+					ctx.moveTo(k, ceilY - 6);
+					ctx.lineTo(k - 10, ceilY - 16);
+				}
+				ctx.stroke();
+				ctx.globalAlpha = 1;
+
+				// finish line
+				const fx = cubeX + goal - dist;
+				if (fx < W + 20) {
+					ctx.setLineDash([8, 8]);
+					ctx.strokeStyle = "#ffffff";
+					ctx.lineWidth = 3;
+					ctx.beginPath();
+					ctx.moveTo(fx, ceilY);
+					ctx.lineTo(fx, floorY);
+					ctx.stroke();
+					ctx.setLineDash([]);
+				}
+
+				ctx.shadowBlur = 10;
+				ctx.shadowColor = SPIKE;
+				ctx.fillStyle = SPIKE;
+				for (const s of spikes) {
+					const x = cubeX + s.x - dist;
+					if (x > W || x + s.w < 0) continue;
+					const base = s.side > 0 ? floorY : ceilY;
+					ctx.beginPath();
+					ctx.moveTo(x, base);
+					ctx.lineTo(x + s.w / 2, base - SPIKE_H * s.side);
+					ctx.lineTo(x + s.w, base);
+					ctx.fill();
+				}
+
+				ctx.shadowColor = GOLD;
+				ctx.fillStyle = GOLD;
+				const bob = Math.sin(dist / 30) * 3;
+				for (const g of gems) {
+					const x = cubeX + g.x - dist;
+					if (g.got || x < -10 || x > W + 10) continue;
+					ctx.beginPath();
+					ctx.moveTo(x, g.y - 9 + bob);
+					ctx.lineTo(x + 7, g.y + bob);
+					ctx.lineTo(x, g.y + 9 + bob);
+					ctx.lineTo(x - 7, g.y + bob);
+					ctx.fill();
+				}
+
+				if (state === "run") {
+					ctx.shadowBlur = 0;
+					ctx.fillStyle = ACCENT;
+					trail.forEach((t, i) => {
+						const k = (i + 1) / trail.length;
+						const sz = S * (0.4 + 0.5 * k);
+						ctx.globalAlpha = 0.25 * k;
+						ctx.fillRect(cubeX - (dist - t.wx) - sz / 2, t.y - sz / 2, sz, sz);
+					});
+					ctx.globalAlpha = 1;
+					ctx.save();
+					ctx.translate(cubeX, y);
+					ctx.rotate(rot);
+					ctx.scale(sx, sy);
+					ctx.shadowColor = ACCENT;
+					ctx.shadowBlur = 18;
+					ctx.fillRect(-S / 2, -S / 2, S, S);
+					ctx.shadowBlur = 0;
+					ctx.fillStyle = "#eafff4";
+					ctx.fillRect(-S / 4, -S / 4, S / 2, S / 2);
+					ctx.restore();
+				}
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>
