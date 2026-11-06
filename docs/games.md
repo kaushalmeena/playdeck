@@ -43,5 +43,6 @@ raises it by one.
 | 🪐 Orbit Dash   | Circle the ring. Tap to reverse. Dodge the red arcs.          | Faster orbit, more arcs                |
 | 💥 Chain Burst  | One tap sets off a blast. Every orb it touches explodes too.  | Higher quota, faster orbs              |
 | 🥁 Beat Ring    | Notes fly into the ring on the beat. Tap as they land.       | Faster tempo, tighter windows, doubles |
+| 🔃 Gravity Flip | Tap to flip gravity. Run the corridor, dodge the spikes.     | Faster run, denser spikes, quick pairs |
 
 Want to add one? See [Adding a Game](./adding-a-game.md).
