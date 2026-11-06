@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 
 import type { GameResult } from "../../games/kit";
 import { useAutoJuice } from "../../hooks/useAutoJuice";
+import { stageFor } from "../../lib/stage";
 import { GameOverlay } from "./GameOverlay";
 import { GameTopBar } from "./GameTopBar";
 import { JuiceLayer } from "./JuiceLayer";
@@ -22,14 +23,13 @@ type Props = {
 	/** 0..1 — renders the standard timer bar while playing */
 	progress?: number;
 	onPlay: () => void;
+	/** page the feed to the next game (offered on the result screen) */
+	onNext?: () => void;
 	/** abort the current run (the ✕ button) */
 	onQuit?: () => void;
 	onPlayingChange?: (playing: boolean) => void;
 	children: ReactNode;
 };
-
-const STAGE =
-	"radial-gradient(120% 80% at 50% -10%, var(--t-stage) 0%, var(--t-bg) 60%)";
 
 /**
  * The frame every game shares: stage background, in-run HUD, progress bar
@@ -47,6 +47,7 @@ export function GameChrome({
 	chips,
 	progress,
 	onPlay,
+	onNext,
 	onQuit,
 	onPlayingChange,
 	children,
@@ -64,7 +65,7 @@ export function GameChrome({
 		<div
 			ref={stage}
 			className="relative size-full overflow-hidden select-none"
-			style={{ background: STAGE }}
+			style={{ background: stageFor(accent) }}
 		>
 			{children}
 
@@ -72,7 +73,8 @@ export function GameChrome({
 
 			{playing && progress !== undefined && (
 				<div
-					className="absolute top-0 left-0 z-10 h-1 w-full origin-left transition-transform duration-100"
+					// sits just under the feed header, which would otherwise cover it
+					className="absolute inset-x-4 top-14 z-10 h-1.5 origin-left rounded-full transition-transform duration-100"
 					style={{
 						transform: `scaleX(${Math.min(Math.max(progress, 0), 1)})`,
 						backgroundImage: `linear-gradient(90deg, ${accent}, #00e5ff)`,
@@ -91,6 +93,7 @@ export function GameChrome({
 					instructions={instructions}
 					result={result}
 					onPlay={onPlay}
+					onNext={onNext}
 				/>
 			)}
 		</div>

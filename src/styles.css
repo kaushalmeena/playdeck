@@ -312,3 +312,25 @@ a:active {
 		animation-duration: 0.01s;
 	}
 }
+
+/* the start button breathes so the next action is never in doubt */
+@keyframes play-glow {
+	0%,
+	100% {
+		box-shadow: 0 8px 30px
+			color-mix(in srgb, var(--glow, #7c5cff) 35%, transparent);
+	}
+	50% {
+		box-shadow: 0 8px 44px
+			color-mix(in srgb, var(--glow, #7c5cff) 70%, transparent);
+	}
+}
+.animate-play-glow {
+	animation: play-glow 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.animate-play-glow,
+	.animate-bounce-slow {
+		animation: none;
+	}
+}

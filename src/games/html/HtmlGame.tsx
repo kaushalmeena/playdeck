@@ -57,6 +57,7 @@ function HtmlGame({
 	active,
 	onEnd,
 	onPlayingChange,
+	onNext,
 }: Props) {
 	const { playing, result, begin, finish, cancel } = useRun(onEnd);
 	const { theme } = useTheme();
@@ -175,6 +176,7 @@ function HtmlGame({
 			chips={hud.chips}
 			progress={hud.progress}
 			onPlay={handlePlay}
+			onNext={onNext}
 			onQuit={stop}
 			onPlayingChange={onPlayingChange}
 		>

@@ -1,7 +1,5 @@
 import type { GameEntry } from "../../games/registry";
-
-const STAGE =
-	"radial-gradient(120% 80% at 50% -10%, var(--t-stage) 0%, var(--t-bg) 60%)";
+import { stageFor } from "../../lib/stage";
 
 /**
  * Shown while a card's chunk is still downloading, or when it is off-screen.
@@ -13,7 +11,7 @@ export function CardPlaceholder({ game }: { game: GameEntry }) {
 	return (
 		<div
 			className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-			style={{ background: STAGE }}
+			style={{ background: stageFor(game.accent) }}
 		>
 			<div
 				className="animate-bounce-slow text-7xl"
@@ -43,14 +41,18 @@ export function CardPlaceholder({ game }: { game: GameEntry }) {
 export function LockedCard({
 	game,
 	unlockAt,
+	total,
 }: {
 	game: GameEntry;
 	unlockAt: number;
+	/** the player's global score — how far along the unlock they are */
+	total: number;
 }) {
+	const progress = unlockAt > 0 ? Math.min(total / unlockAt, 1) : 1;
 	return (
 		<div
 			className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-			style={{ background: STAGE }}
+			style={{ background: stageFor(game.accent) }}
 		>
 			<div className="text-7xl opacity-30 grayscale">{game.emoji}</div>
 			<div className="text-5xl">🔒</div>
@@ -59,6 +61,25 @@ export function LockedCard({
 			</div>
 			<div className="rounded-full border border-line bg-card px-4 py-1.5 text-xs font-extrabold tracking-wider text-accent2">
 				UNLOCKS AT 🏆 {unlockAt.toLocaleString()}
+			</div>
+			<div className="w-48">
+				<div
+					className="h-2 overflow-hidden rounded-full bg-line"
+					role="progressbar"
+					aria-label={`Unlock progress for ${game.title}`}
+					aria-valuemin={0}
+					aria-valuemax={unlockAt}
+					aria-valuenow={Math.min(total, unlockAt)}
+				>
+					<div
+						className="h-full rounded-full bg-linear-to-r from-accent to-accent2"
+						style={{ width: `${progress * 100}%` }}
+					/>
+				</div>
+				<p className="mt-2 text-center text-xs text-muted">
+					{Math.max(unlockAt - total, 0).toLocaleString()} pts to go — play any
+					game to earn them
+				</p>
 			</div>
 		</div>
 	);

@@ -19,6 +19,10 @@ export type GameCardProps = {
 	onToggleFavorite: () => void;
 	onEnd: (won: boolean, score: number) => void;
 	onPlayingChange: (playing: boolean) => void;
+	/** page to the next card */
+	onNext: () => void;
+	/** the player's global score, for the locked card's unlock progress */
+	total: number;
 };
 
 function GameCardImpl({
@@ -34,6 +38,8 @@ function GameCardImpl({
 	onToggleFavorite,
 	onEnd,
 	onPlayingChange,
+	onNext,
+	total,
 }: GameCardProps) {
 	// An already-downloaded game renders on the very first frame, so a card the
 	// feed preloaded never flashes its placeholder.

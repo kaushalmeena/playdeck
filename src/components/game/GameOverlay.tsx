@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 
 import type { GameResult } from "../../games/kit";
 import { useCountUp } from "../../hooks/useCountUp";
@@ -12,6 +12,8 @@ type Props = {
 	instructions: string;
 	result: GameResult;
 	onPlay: () => void;
+	/** page the feed onward — offered once a run has finished */
+	onNext?: () => void;
 };
 
 /** the start / result screen shown whenever a run isn't in progress */
@@ -23,6 +25,7 @@ export function GameOverlay({
 	instructions,
 	result,
 	onPlay,
+	onNext,
 }: Props) {
 	const gradient = `linear-gradient(135deg, ${accent}, #00e5ff)`;
 
@@ -32,10 +35,15 @@ export function GameOverlay({
 		onPlay();
 	};
 
+	const handleNext = (e: MouseEvent<HTMLButtonElement>) => {
+		e.currentTarget.blur();
+		onNext?.();
+	};
+
 	return (
-		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-bg/60 px-6 text-center backdrop-blur-md">
+		<div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-bg/40 px-6 text-center backdrop-blur-md">
 			<div
-				className="text-7xl"
+				className={result ? "text-7xl" : "animate-bounce-slow text-7xl"}
 				style={{ filter: `drop-shadow(0 0 26px ${accent})` }}
 			>
 				{emoji}
@@ -56,14 +64,32 @@ export function GameOverlay({
 					{instructions}
 				</p>
 			)}
+			{/*
+			 * The ::before stretches this button's hit area over the whole
+			 * overlay: tap anywhere to play, while it stays one real button for
+			 * keyboards and screen readers.
+			 */}
 			<button
 				type="button"
 				onClick={handlePlay}
-				className="mt-2 rounded-full px-10 py-3.5 text-base font-extrabold text-white shadow-[0_8px_30px_rgba(124,92,255,0.4)] transition-transform active:scale-95"
-				style={{ backgroundImage: gradient }}
+				className="animate-play-glow mt-2 rounded-full px-10 py-3.5 text-base font-extrabold text-white transition-transform before:absolute before:inset-0 before:content-[''] active:scale-95"
+				style={{ backgroundImage: gradient, "--glow": accent } as CSSProperties}
 			>
 				{result ? (result.won ? "▶ Next level" : "↻ Retry") : "▶ Play"}
 			</button>
+			<p className="text-[11px] font-bold tracking-[0.25em] text-muted/70">
+				{result ? "TAP ANYWHERE TO GO AGAIN" : "TAP ANYWHERE TO START"}
+			</p>
+			{result && onNext && (
+				<button
+					type="button"
+					onClick={handleNext}
+					// above the stretched play area
+					className="relative z-10 rounded-full border border-line bg-card/80 px-6 py-2.5 text-sm font-bold text-text backdrop-blur-md transition-transform active:scale-95"
+				>
+					Next game ↓
+				</button>
+			)}
 		</div>
 	);
 }

@@ -29,6 +29,8 @@ export type GameProps = {
 	onEnd: (won: boolean, score: number) => void;
 	/** lets the feed lock scrolling while a run is live */
 	onPlayingChange?: (playing: boolean) => void;
+	/** page the feed to the next game — pass to GameChrome for the result screen */
+	onNext?: () => void;
 };
 
 export type GameResult = {

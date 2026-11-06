@@ -6,7 +6,9 @@ type Props = {
 
 export function NavArrows({ onPage }: Props) {
 	return (
-		<div className="absolute top-1/2 right-3 z-40 flex -translate-y-1/2 flex-col gap-2">
+		<div // touch screens swipe; the arrows are for mouse and trackpad users
+			className="absolute top-1/2 right-3 z-40 hidden -translate-y-1/2 flex-col gap-2 pointer-fine:flex"
+		>
 			{[
 				{ dir: -1, glyph: "▲", label: "Previous game" },
 				{ dir: 1, glyph: "▼", label: "Next game" },

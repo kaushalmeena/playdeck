@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Toaster } from "sonner";
 
 import type { GameEntry } from "../../games/registry";
@@ -7,18 +7,21 @@ import { useFeedReady } from "../../hooks/useFeedReady";
 import { useInfiniteFeed } from "../../hooks/useInfiniteFeed";
 import { useRunRecorder } from "../../hooks/useRunRecorder";
 import { useShuffledGames } from "../../hooks/useShuffledGames";
+import { useSwipeHint } from "../../hooks/useSwipeHint";
 import { dailyGames, dateKey } from "../../lib/daily";
 import { listIndex } from "../../lib/feed/loop";
 import { selectList, type Tab } from "../../lib/feed/ordering";
 import { unlockedCount, unlockThreshold } from "../../lib/feed/progression";
 import { store, usePlayerState } from "../../lib/storage";
 import { useTheme } from "../../lib/theme";
+import { DailyBanner } from "./DailyBanner";
 import { EmptyState } from "./EmptyState";
 import { FeedHeader } from "./FeedHeader";
 import { FeedLoader } from "./FeedLoader";
 import { GameCard } from "./GameCard";
 import { NavArrows } from "./NavArrows";
 import { ShareDailyButton } from "./ShareDailyButton";
+import { SwipeHint } from "./SwipeHint";
 
 export function GameFeed({
 	games,
@@ -70,6 +73,10 @@ export function GameFeed({
 		resetKey: `${tab}:${list.length}:${shuffled[0]?.id ?? ""}`,
 		frozen,
 	});
+
+	const { page } = feed;
+	const showHint = useSwipeHint(feed.index, frozen) && list.length > 1;
+	const handleNext = useCallback(() => page(1), [page]);
 
 	if (!ready) return <FeedLoader />;
 
@@ -129,6 +136,8 @@ export function GameFeed({
 										onToggleFavorite={() => store.toggleFavorite(game.id)}
 										onEnd={handlers.end}
 										onPlayingChange={handlers.playing}
+										onNext={handleNext}
+										total={player.total}
 									/>
 								</div>
 							);
@@ -138,6 +147,15 @@ export function GameFeed({
 			</div>
 
 			{list.length > 1 && !frozen && <NavArrows onPage={feed.page} />}
+
+			{showHint && <SwipeHint />}
+
+			{tab === "daily" && !frozen && (
+				<DailyBanner
+					done={dailyIds.filter((id) => dailyWon.includes(id)).length}
+					total={dailyIds.length}
+				/>
+			)}
 
 			{tab === "daily" && dailyComplete && !frozen && (
 				<ShareDailyButton
