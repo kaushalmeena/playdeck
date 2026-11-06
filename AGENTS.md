@@ -1,6 +1,6 @@
 # Playdeck
 
-32 small games in an endless vertical feed. The guiding rule is **behaviour
+Dozens of small games in an endless vertical feed. The guiding rule is **behaviour
 lives in pure modules and hooks; components only render** — the scroll engine,
 scoring, ordering and unlocks contain no React and no DOM, so they are unit
 tested directly rather than through a rendered tree.
@@ -9,7 +9,7 @@ tested directly rather than through a rendered tree.
 
 ```bash
 npm run check   # oxlint (+ tailwind rules) and oxfmt --check
-npm run test    # vitest, 48 tests
+npm run test    # vitest
 ```
 
 `npm run generate-routes` regenerates TanStack Router's route tree; run it after
@@ -21,7 +21,7 @@ adding or moving a route file.
 | ----------------------------------------- | ----------------------------------------- |
 | Adding a game                             | [adding-a-game.md](docs/adding-a-game.md) |
 | Feed, scroll engine, scoring, persistence | [architecture.md](docs/architecture.md)   |
-| What each of the 32 games is              | [games.md](docs/games.md)                 |
+| What each game is                         | [games.md](docs/games.md)                 |
 
 ## Conventions
 

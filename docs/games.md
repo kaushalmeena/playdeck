@@ -1,6 +1,6 @@
 # The Games
 
-All 32 games in the feed, in canonical order — which is also their unlock
+Every game in the feed, in canonical order — which is also their unlock
 order. The feed shuffles the display order on every visit, so this is not the
 sequence you will scroll through.
 

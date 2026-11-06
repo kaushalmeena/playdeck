@@ -107,7 +107,7 @@ useEffect(() => {
 
 Wrap your play area in [`GameChrome`](../src/components/game/GameChrome.tsx).
 It draws the stage background, the in-run HUD chips, the optional progress
-bar, the quit button and the start/result overlay — which is what makes 32
+bar, the quit button and the start/result overlay — which is what makes dozens of
 independently written games look like one product.
 
 ```tsx
