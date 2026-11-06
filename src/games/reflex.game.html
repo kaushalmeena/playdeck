@@ -1,0 +1,381 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Reflex Rush" />
+		<meta name="playdeck:emoji" content="⚡" />
+		<meta
+			name="playdeck:desc"
+			content="Wait for green. Tap fast. Don't jump the gun."
+		/>
+		<meta name="playdeck:order" content="1" />
+		<meta name="playdeck:accent" content="#00b8d9" />
+		<meta
+			name="playdeck:instructions"
+			content="Tap the circle the instant it turns green. Tap too early — even on a yellow fake-out — and it's over. Fast taps in a row build a multiplier. 5 rounds."
+		/>
+		<style>
+			body {
+				display: grid;
+				place-items: center;
+			}
+			#pad {
+				position: relative;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 6px;
+				width: min(64vw, 300px, 46vh);
+				aspect-ratio: 1;
+				border-radius: 50%;
+				border: 2px solid var(--t-line);
+				background: var(--t-card);
+				color: var(--t-muted);
+				font: inherit;
+				cursor: pointer;
+				transition:
+					background 0.1s,
+					box-shadow 0.1s,
+					border-color 0.1s,
+					color 0.1s;
+			}
+			#txt {
+				font-size: 26px;
+				font-weight: 900;
+				letter-spacing: 0.2em;
+			}
+			#sub {
+				min-height: 1.2em;
+				font-size: 13px;
+				font-weight: 800;
+				letter-spacing: 0.18em;
+				opacity: 0.85;
+			}
+			#pad.wait {
+				border-color: var(--t-danger);
+				background: color-mix(in srgb, var(--t-danger) 15%, transparent);
+				color: var(--t-danger);
+				box-shadow: 0 0 60px rgba(255, 77, 109, 0.3);
+			}
+			/* the fake-out: looks like it might be time… it isn't */
+			#pad.decoy {
+				border-color: #ffd24d;
+				background: color-mix(in srgb, #ffd24d 18%, transparent);
+				color: #ffd24d;
+				box-shadow: 0 0 70px rgba(255, 210, 77, 0.4);
+				animation: jitter 0.12s linear infinite;
+			}
+			#pad.go {
+				border-color: var(--t-good);
+				background: color-mix(in srgb, var(--t-good) 15%, transparent);
+				color: var(--t-good);
+				box-shadow: 0 0 90px rgba(61, 255, 160, 0.45);
+				animation: throb 0.35s ease-in-out infinite alternate;
+			}
+			#pad.hit {
+				border-color: var(--t-good);
+				color: var(--t-good);
+				animation: punch 0.3s ease-out;
+			}
+			#pad.fail {
+				border-color: var(--t-danger);
+				background: color-mix(in srgb, var(--t-danger) 25%, transparent);
+				color: var(--t-danger);
+				animation: wobble 0.4s ease-out;
+			}
+			#pad.win {
+				border-color: var(--t-good);
+				background: color-mix(in srgb, var(--t-good) 22%, transparent);
+				color: var(--t-good);
+				box-shadow: 0 0 120px rgba(61, 255, 160, 0.6);
+				animation: punch 0.45s ease-out;
+			}
+			/* expanding ring that fires at the moment of a good tap */
+			.ring {
+				position: absolute;
+				inset: -2px;
+				border-radius: 50%;
+				border: 3px solid var(--t-good);
+				pointer-events: none;
+				animation: ring 0.5s ease-out forwards;
+			}
+			@keyframes throb {
+				from {
+					transform: scale(1);
+				}
+				to {
+					transform: scale(1.05);
+				}
+			}
+			@keyframes punch {
+				0% {
+					transform: scale(0.9);
+				}
+				60% {
+					transform: scale(1.08);
+				}
+				100% {
+					transform: scale(1);
+				}
+			}
+			@keyframes wobble {
+				0%,
+				100% {
+					transform: translateX(0);
+				}
+				20% {
+					transform: translateX(-14px);
+				}
+				40% {
+					transform: translateX(12px);
+				}
+				60% {
+					transform: translateX(-8px);
+				}
+				80% {
+					transform: translateX(4px);
+				}
+			}
+			@keyframes jitter {
+				0%,
+				100% {
+					transform: translate(0, 0);
+				}
+				50% {
+					transform: translate(1px, -1px);
+				}
+			}
+			@keyframes ring {
+				from {
+					transform: scale(1);
+					opacity: 1;
+				}
+				to {
+					transform: scale(1.6);
+					opacity: 0;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<button id="pad" type="button">
+			<span id="txt">READY</span>
+			<span id="sub"></span>
+		</button>
+		<script>
+			const ROUNDS = 5;
+			const pad = document.getElementById("pad");
+			const txt = document.getElementById("txt");
+			const sub = document.getElementById("sub");
+
+			// "idle" | "wait" | "decoy" | "go" | "done"
+			let state = "idle";
+			let round = 1;
+			let score = 0;
+			let streak = 0; // consecutive fast (<300ms) taps → multiplier
+			let t0 = 0;
+			let baseWindow = 900;
+			let decoyChance = 0;
+			let times = [];
+			let timers = [];
+
+			function after(ms, fn) {
+				timers.push(setTimeout(fn, ms));
+			}
+			function clearTimers() {
+				for (const t of timers) clearTimeout(t);
+				timers = [];
+			}
+
+			function setPad(cls, text, subText = "") {
+				pad.className = cls;
+				txt.textContent = text;
+				sub.textContent = subText;
+			}
+
+			function mult() {
+				return Math.min(1 + streak, 3);
+			}
+
+			function hud() {
+				const best = times.length ? Math.min(...times) : 0;
+				playdeck.hud({
+					chips: [
+						`ROUND ${Math.min(round, ROUNDS)}/${ROUNDS}`,
+						`${score} PTS`,
+						mult() > 1 ? `×${mult()} STREAK` : best ? `BEST ${best}ms` : "⚡",
+					],
+				});
+			}
+
+			// the reaction window shrinks a little every round
+			function windowMs() {
+				return Math.max(baseWindow - (round - 1) * 40, 300);
+			}
+
+			function padCentre() {
+				const r = pad.getBoundingClientRect();
+				return {
+					x: r.left + r.width / 2,
+					y: r.top + r.height / 2,
+					r: r.width / 2,
+				};
+			}
+
+			function nextRound() {
+				state = "wait";
+				setPad("wait", "WAIT…", `ROUND ${round}`);
+				hud();
+				const delay = 800 + Math.random() * 1600;
+				// from round 2 a yellow fake-out may flicker partway through the wait
+				if (round >= 2 && Math.random() < decoyChance) {
+					after(delay * (0.35 + Math.random() * 0.3), () => {
+						if (state !== "wait") return;
+						state = "decoy";
+						setPad("decoy", "WAIT…", "NOT YET");
+						after(380, () => {
+							if (state !== "decoy") return;
+							state = "wait";
+							setPad("wait", "WAIT…", `ROUND ${round}`);
+						});
+					});
+				}
+				after(delay, () => {
+					// if a decoy is still showing, hold the green a beat so they never overlap
+					const go = () => {
+						state = "go";
+						setPad("go", "TAP!");
+						t0 = performance.now();
+						after(windowMs(), () => fail("TOO SLOW", "Too slow"));
+					};
+					if (state === "decoy") after(420, go);
+					else go();
+				});
+			}
+
+			function fail(label, note) {
+				if (state === "done" || state === "idle") return;
+				clearTimers();
+				state = "done";
+				streak = 0;
+				setPad(
+					"fail",
+					label,
+					times.length ? `${times.length}/${ROUNDS} HIT` : "",
+				);
+				const c = padCentre();
+				playdeck.sfx("bad");
+				playdeck.shake(2);
+				playdeck.burst(c.x, c.y, "#ff4d6d", 18);
+				playdeck.pop(c.x, c.y - c.r - 10, label, "#ff4d6d");
+				hud();
+				// a short beat so the failure registers before the result screen
+				after(750, () => playdeck.end(false, score, note));
+			}
+
+			function hit() {
+				clearTimers();
+				const rt = Math.round(performance.now() - t0);
+				times.push(rt);
+				if (rt < 300) streak += 1;
+				else streak = 0;
+				const m = mult();
+				const base = Math.max(5, Math.round((windowMs() - rt) / 10) + 10);
+				const pts = base * m;
+				score += pts;
+
+				const rating =
+					rt < 220 ? "LIGHTNING" : rt < 300 ? "FAST" : rt < 450 ? "GOOD" : "OK";
+				const colour =
+					rt < 220
+						? "#ffd24d"
+						: rt < 300
+							? "#3dffa0"
+							: rt < 450
+								? "#00e5ff"
+								: "#b06bff";
+				state = "idle";
+				setPad("hit", `${rt}ms`, rating);
+				const ring = document.createElement("span");
+				ring.className = "ring";
+				pad.appendChild(ring);
+				setTimeout(() => ring.remove(), 520);
+
+				const c = padCentre();
+				playdeck.sfx("good");
+				playdeck.burst(c.x, c.y, colour, rt < 220 ? 30 : rt < 300 ? 20 : 12);
+				playdeck.pop(c.x, c.y - c.r - 10, `+${pts}`, colour);
+				if (m > 1) playdeck.pop(c.x, c.y + c.r + 24, `×${m} STREAK`, "#ffd24d");
+				if (rt < 220) playdeck.shake(1);
+
+				if (round >= ROUNDS) {
+					state = "done";
+					hud();
+					after(380, () => {
+						setPad("win", "CLEAR!", `AVG ${avg()}ms`);
+						playdeck.flash("#3dffa0");
+						playdeck.burst(c.x, c.y, "#3dffa0", 40);
+						after(650, () =>
+							playdeck.end(
+								true,
+								score,
+								`Avg ${avg()}ms · best ${Math.min(...times)}ms`,
+							),
+						);
+					});
+				} else {
+					round += 1;
+					hud();
+					after(700, nextRound);
+				}
+			}
+
+			function avg() {
+				return Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+			}
+
+			function tap() {
+				if (!playdeck.running) return;
+				if (state === "wait" || state === "decoy") {
+					fail(
+						"TOO EARLY",
+						state === "decoy" ? "Fell for the fake-out" : "Jumped the gun",
+					);
+				} else if (state === "go") {
+					hit();
+				}
+			}
+
+			playdeck.onStart(({ level }) => {
+				clearTimers();
+				const lv = Math.min(level, 12);
+				baseWindow = Math.max(900 - (lv - 1) * 60, 380);
+				decoyChance = Math.min(0.25 + lv * 0.05, 0.55);
+				round = 1;
+				score = 0;
+				streak = 0;
+				times = [];
+				state = "idle";
+				setPad("", "GET READY");
+				hud();
+				after(500, nextRound);
+			});
+
+			playdeck.onStop(() => {
+				clearTimers();
+				state = "idle";
+				setPad("", "READY");
+			});
+
+			// tap anywhere — the whole stage is the button
+			document.addEventListener("pointerdown", tap);
+			document.addEventListener("keydown", (e) => {
+				if (e.code === "Space" || e.key === "Enter") {
+					e.preventDefault();
+					if (!e.repeat) tap();
+				}
+			});
+		</script>
+	</body>
+</html>
