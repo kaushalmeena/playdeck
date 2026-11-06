@@ -45,5 +45,6 @@ raises it by one.
 | 🥁 Beat Ring    | Notes fly into the ring on the beat. Tap as they land.       | Faster tempo, tighter windows, doubles |
 | 🔃 Gravity Flip | Tap to flip gravity. Run the corridor, dodge the spikes.     | Faster run, denser spikes, quick pairs |
 | 🗂️ Swipe Sort   | Swipe each card into the right bin before its timer runs out. | Shorter timer, more categories, swaps  |
+| 🏀 Hoop Flick   | Pull back and flick the ball through the hoop.               | Sliding hoop, then a drifting height   |
 
 Want to add one? See [Adding a Game](./adding-a-game.md).
