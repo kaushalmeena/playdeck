@@ -30,6 +30,7 @@ jobs:
       - run: npm run check
       - run: npm run typecheck
       - run: npm test
+      - run: npm run verify:games
       - run: npm run build
         env:
           # Pages serves a project site from /<repo>/, so the app is built
