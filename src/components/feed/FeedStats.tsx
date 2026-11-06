@@ -57,7 +57,7 @@ export function FeedStats({
 				}}
 				aria-label={sound.on ? "Mute sound" : "Unmute sound"}
 				aria-pressed={sound.on}
-				className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:h-8 sm:w-8 sm:text-sm"
+				className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:size-8 sm:text-sm"
 			>
 				{sound.on ? "🔊" : "🔇"}
 			</button>
@@ -69,7 +69,7 @@ export function FeedStats({
 					onToggleTheme();
 				}}
 				aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-				className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:h-8 sm:w-8 sm:text-sm"
+				className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-card/80 text-xs backdrop-blur-md sm:size-8 sm:text-sm"
 			>
 				{theme === "dark" ? "🌙" : "☀️"}
 			</button>
