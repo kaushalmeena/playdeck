@@ -41,13 +41,13 @@ delete it and it's gone.
 
 ## Tech Stack
 
-| Area        | Tools                                                                                                                    |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **App**     | [TanStack Start](https://tanstack.com/start) · [React](https://react.dev) · [TypeScript](https://www.typescriptlang.org)  |
-| **Styling** | [Tailwind CSS](https://tailwindcss.com)                                                                                  |
-| **Games**   | Canvas 2D · Web Audio                                                                                                    |
-| **Testing** | [Vitest](https://vitest.dev)                                                                                             |
-| **Tooling** | [Vite](https://vite.dev) · [Biome](https://biomejs.dev)                                                                  |
+| Area        | Tools                                                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **App**     | [TanStack Start](https://tanstack.com/start) · [React](https://react.dev) · [TypeScript](https://www.typescriptlang.org)         |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com)                                                                                          |
+| **Games**   | Canvas 2D · Web Audio                                                                                                            |
+| **Testing** | [Vitest](https://vitest.dev)                                                                                                     |
+| **Tooling** | [Vite](https://vite.dev) · [oxlint](https://oxc.rs/docs/guide/usage/linter) · [oxfmt](https://oxc.rs/docs/guide/usage/formatter) |
 
 ## Getting Started
 

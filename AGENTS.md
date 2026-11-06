@@ -8,7 +8,7 @@ tested directly rather than through a rendered tree.
 ## Done means the checks pass
 
 ```bash
-npm run check   # biome: lint + format
+npm run check   # oxlint (+ tailwind rules) and oxfmt --check
 npm run test    # vitest, 48 tests
 ```
 
@@ -17,11 +17,11 @@ adding or moving a route file.
 
 ## Reading the codebase
 
-| Working on                                  | Read                                          |
-| ------------------------------------------- | --------------------------------------------- |
-| Adding a game                               | [adding-a-game.md](docs/adding-a-game.md)     |
-| Feed, scroll engine, scoring, persistence   | [architecture.md](docs/architecture.md)       |
-| What each of the 32 games is                | [games.md](docs/games.md)                     |
+| Working on                                | Read                                      |
+| ----------------------------------------- | ----------------------------------------- |
+| Adding a game                             | [adding-a-game.md](docs/adding-a-game.md) |
+| Feed, scroll engine, scoring, persistence | [architecture.md](docs/architecture.md)   |
+| What each of the 32 games is              | [games.md](docs/games.md)                 |
 
 ## Conventions
 

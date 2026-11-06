@@ -1,0 +1,74 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": [
+		"typescript",
+		"react",
+		"react-perf",
+		"jsx-a11y",
+		"import",
+		"unicorn",
+		"vitest"
+	],
+	"jsPlugins": ["oxlint-tailwindcss"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn",
+		"perf": "warn"
+	},
+	"env": {
+		"browser": true,
+		"es2024": true
+	},
+	"settings": {
+		"tailwindcss": {
+			"entryPoint": "src/styles.css"
+		}
+	},
+	"ignorePatterns": [
+		"src/routeTree.gen.ts",
+		"dist",
+		".tanstack",
+		"public/vendor"
+	],
+	"rules": {
+		"react/react-in-jsx-scope": "off",
+		"react/rules-of-hooks": "error",
+		"react/exhaustive-deps": "warn",
+		"react-perf/jsx-no-new-object-as-prop": "off",
+		"react-perf/jsx-no-new-array-as-prop": "off",
+		"react-perf/jsx-no-new-function-as-prop": "off",
+		"react-perf/jsx-no-jsx-as-prop": "off",
+		"tailwindcss/no-conflicting-classes": "error",
+		"tailwindcss/no-contradicting-variants": "warn",
+		"tailwindcss/no-duplicate-classes": "warn",
+		"tailwindcss/no-dynamic-classes": "error",
+		"tailwindcss/no-unknown-classes": "error",
+		"tailwindcss/enforce-canonical": "warn",
+		"tailwindcss/enforce-negative-arbitrary-values": "warn",
+		"tailwindcss/no-deprecated-classes": "error",
+		"tailwindcss/no-unnecessary-arbitrary-value": "warn",
+		"tailwindcss/consistent-variant-order": "warn",
+		"tailwindcss/enforce-consistent-important-position": "warn",
+		"tailwindcss/enforce-consistent-variable-syntax": "warn",
+		"tailwindcss/enforce-shorthand": "warn",
+		"tailwindcss/no-unnecessary-whitespace": "warn",
+		"tailwindcss/enforce-sort-order": "off",
+		"react/refs": "off",
+		"react/set-state-in-effect": "off",
+		"react/purity": "off",
+		"react/incompatible-library": "off",
+		"react/memo-dependencies": "off",
+		"react/exhaustive-effect-dependencies": "off",
+		"react/no-array-index-key": "off",
+		"unicorn/no-array-sort": "off",
+		"jsx-a11y/prefer-tag-over-role": "off"
+	},
+	"overrides": [
+		{
+			"files": ["**/__tests__/**", "**/*.test.ts"],
+			"rules": {
+				"typescript/no-non-null-assertion": "off"
+			}
+		}
+	]
+}
