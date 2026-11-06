@@ -100,7 +100,9 @@
 				bx = W / 2;
 				by = H * 0.35;
 				const s = Math.min(480 + L * 20, 700);
-				vx = (Math.random() < 0.5 ? -1 : 1) * s * 0.45;
+				// near-vertical first serve: it comes back onto the centred paddle, so
+				// a new player gets one free bounce to learn the feel
+				vx = (Math.random() < 0.5 ? -1 : 1) * s * 0.06;
 				vy = -s; // serve upward so there is a beat to get under it
 				trail = [];
 				squash = 0;
