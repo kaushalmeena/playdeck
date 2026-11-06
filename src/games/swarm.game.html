@@ -1,0 +1,682 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Neon Swarm" />
+		<meta name="playdeck:emoji" content="🛸" />
+		<meta
+			name="playdeck:desc"
+			content="Slide. Shoot. Shred the swarm before it shreds you."
+		/>
+		<meta name="playdeck:order" content="50" />
+		<meta name="playdeck:accent" content="#00e5ff" />
+		<meta
+			name="playdeck:instructions"
+			content="Drag anywhere to steer your ship — it fires on its own. Clear every wave, grab power-ups, and don't take a single hit."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#00e5ff",
+				BOLT = "#ff3b5c";
+			const ENEMY_COLORS = [
+				"#ff5cd0",
+				"#ffd24d",
+				"#3dffa0",
+				"#7c5cff",
+				"#ff8a3d",
+			];
+			const POWERS = {
+				spread: { c: "#ffd24d", label: "SPREAD!", glyph: "≋" },
+				rapid: { c: "#3dffa0", label: "RAPID!", glyph: "»" },
+				shield: { c: "#00e5ff", label: "SHIELD!", glyph: "◎" },
+			};
+			const SHOT_SPEED = 900,
+				POWER_TIME = 6; // seconds a spread/rapid power-up lasts
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				textColor = "#eaeaf2";
+			let state = "idle",
+				raf = 0,
+				endTimer = 0,
+				t = 0,
+				hudT = 0;
+			// Run parameters (set from level in onStart)
+			let lv = 1,
+				waves = 3,
+				pace = 1,
+				fireEvery = 0.9,
+				boltSpeed = 180;
+			// Run state
+			let wave = 0,
+				score = 0,
+				kills = 0,
+				sinceDrop = 0,
+				between = 0,
+				fireCD = 0,
+				formDrop = 0,
+				form = null;
+			let ship = null;
+			let shots = [],
+				foes = [],
+				bolts = [],
+				drops = [],
+				stars = [];
+			const keys = new Set();
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				if (ship) {
+					ship.y = shipY();
+					ship.x = Math.min(Math.max(ship.x, 20), W - 20);
+				}
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			// The ship sits just above the bottom 90px reserved for the caption.
+			function shipY() {
+				return H - 90 - 44;
+			}
+
+			function hud() {
+				let power = "";
+				if (ship.rapidT > 0) power = "» RAPID";
+				else if (ship.spreadT > 0) power = "≋ SPREAD";
+				if (ship.shield) power = power ? `◎ ${power}` : "◎ SHIELD";
+				const chips = [
+					`🌊 ${Math.min(wave + 1, waves)}/${waves}`,
+					`✦ ${score}`,
+				];
+				if (power) chips.push(power);
+				playdeck.hud({ chips });
+			}
+
+			playdeck.onStart(({ level }) => {
+				textColor =
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--t-text")
+						.trim() || "#eaeaf2";
+				lv = Math.min(Math.max(level, 1), 12);
+				waves = Math.min(2 + lv, 6);
+				pace = Math.min(1 + (lv - 1) * 0.1, 1.6);
+				fireEvery = Math.max(0.9 - (lv - 1) * 0.08, 0.36);
+				boltSpeed = Math.min(170 + lv * 12, 280);
+
+				wave = score = kills = sinceDrop = between = 0;
+				fireCD = 1.2; // a beat of grace before the first enemy shot
+				t = hudT = 0;
+				shots = [];
+				bolts = [];
+				drops = [];
+				foes = [];
+				ship = {
+					x: W / 2,
+					tx: W / 2,
+					y: shipY(),
+					alive: true,
+					shield: false,
+					spreadT: 0,
+					rapidT: 0,
+					fireT: 0,
+					invT: 0,
+					tilt: 0,
+				};
+				stars = Array.from({ length: 50 }, () => ({
+					x: Math.random() * W,
+					y: Math.random() * H,
+					s: 0.3 + Math.random(),
+				}));
+				keys.clear();
+				spawnWave(0);
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			// ---- Input: drag anywhere (or move the mouse) to steer; arrows / A-D too.
+			function steer(e) {
+				if (state !== "run" || !playdeck.running) return;
+				ship.tx = Math.min(Math.max(e.clientX, 20), W - 20);
+			}
+			function onPointerDown(e) {
+				if (state !== "run" || !playdeck.running) return;
+				canvas.setPointerCapture(e.pointerId);
+				steer(e);
+			}
+			canvas.addEventListener("pointerdown", onPointerDown);
+			canvas.addEventListener("pointermove", steer);
+
+			function onKeyDown(e) {
+				if (["ArrowLeft", "ArrowRight", "KeyA", "KeyD"].includes(e.code)) {
+					e.preventDefault();
+					keys.add(e.code);
+				}
+			}
+			function onKeyUp(e) {
+				keys.delete(e.code);
+			}
+			document.addEventListener("keydown", onKeyDown);
+			document.addEventListener("keyup", onKeyUp);
+
+			// ---- Waves: a grid formation that drops in and sways, plus weavers
+			// that snake down the screen (and loop back to the top if they pass you).
+			function spawnWave(w) {
+				const cols = Math.min(
+					4 + Math.floor(w / 2) + Math.floor((lv - 1) / 3),
+					6,
+				);
+				const rows = Math.min(
+					2 + (w > 0 ? 1 : 0) + Math.floor((lv - 1) / 3),
+					4,
+				);
+				const gap = Math.min(54, (W - 80) / (cols - 1));
+				form = { cols, rows, gap, x0: W / 2 - (gap * (cols - 1)) / 2 };
+				formDrop = 0;
+				const armored = lv >= 2 && w >= 1; // top row takes two hits
+				for (let r = 0; r < rows; r++) {
+					const c = ENEMY_COLORS[(w + r) % ENEMY_COLORS.length];
+					for (let col = 0; col < cols; col++) {
+						const tough = armored && r === 0;
+						foes.push({
+							kind: tough ? "armor" : "grunt",
+							row: r,
+							col,
+							x: form.x0 + col * form.gap,
+							y: -40 - (rows - r) * 46 - col * 6,
+							r: 15,
+							hp: tough ? 2 : 1,
+							c,
+							hitT: 0,
+							spin: Math.random() * 6,
+						});
+					}
+				}
+				const weavers = Math.min(w + Math.floor((lv - 1) / 2), 4);
+				for (let i = 0; i < weavers; i++) {
+					foes.push({
+						kind: "weave",
+						baseX: 60 + Math.random() * Math.max(W - 120, 1),
+						x: 0,
+						y: -80 - i * 110,
+						r: 14,
+						hp: 1,
+						c: "#ff5cd0",
+						hitT: 0,
+						phase: Math.random() * 6,
+						amp: 40 + Math.random() * 50,
+						spin: 0,
+					});
+				}
+			}
+
+			function step(dt) {
+				t += dt;
+				// Stars always drift so the screen never feels frozen.
+				for (const s of stars) {
+					s.y += (30 + s.s * 70) * dt;
+					if (s.y > H) {
+						s.y = 0;
+						s.x = Math.random() * W;
+					}
+				}
+				stepBolts(dt);
+				if (state !== "run") return;
+
+				// Ship: keyboard nudges the target, then the ship eases toward it.
+				const kdir =
+					(keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0) -
+					(keys.has("ArrowLeft") || keys.has("KeyA") ? 1 : 0);
+				if (kdir)
+					ship.tx = Math.min(Math.max(ship.tx + kdir * 520 * dt, 20), W - 20);
+				const prevX = ship.x;
+				ship.x += (ship.tx - ship.x) * Math.min(1, dt * 18);
+				ship.tilt = Math.max(
+					-1,
+					Math.min(1, (ship.x - prevX) / (dt * 600 || 1)),
+				);
+				ship.invT = Math.max(ship.invT - dt, 0);
+				const hadRapid = ship.rapidT > 0,
+					hadSpread = ship.spreadT > 0;
+				ship.rapidT = Math.max(ship.rapidT - dt, 0);
+				ship.spreadT = Math.max(ship.spreadT - dt, 0);
+				if ((hadRapid && !ship.rapidT) || (hadSpread && !ship.spreadT)) hud();
+
+				// Auto-fire
+				ship.fireT -= dt;
+				if (ship.fireT <= 0) {
+					ship.fireT = ship.rapidT > 0 ? 0.07 : 0.15;
+					const angles = ship.spreadT > 0 ? [-0.2, 0, 0.2] : [0];
+					for (const a of angles) {
+						shots.push({
+							x: ship.x + a * 20,
+							y: ship.y - 16,
+							vx: Math.sin(a) * SHOT_SPEED,
+							vy: -Math.cos(a) * SHOT_SPEED,
+						});
+					}
+				}
+				for (const s of shots) {
+					s.x += s.vx * dt;
+					s.y += s.vy * dt;
+				}
+				shots = shots.filter((s) => s.y > -20 && s.x > -20 && s.x < W + 20);
+
+				stepFoes(dt);
+				stepShotHits();
+				stepEnemyFire(dt);
+				stepDrops(dt);
+				checkShipHits();
+				if (state !== "run") return;
+
+				// Wave cleared → short breather, then the next one (or the win).
+				if (foes.length === 0) {
+					if (between === 0) {
+						if (wave + 1 >= waves) return win();
+						between = 1.1;
+						playdeck.flash(ACCENT);
+						playdeck.sfx("good");
+						playdeck.pop(W / 2, H * 0.4, `WAVE ${wave + 2}`, ACCENT);
+					} else {
+						between -= dt;
+						if (between <= 0) {
+							between = 0;
+							wave += 1;
+							spawnWave(wave);
+							hud();
+						}
+					}
+				}
+
+				hudT += dt;
+				if (hudT > 0.3) {
+					hudT = 0;
+					hud();
+				}
+			}
+
+			function stepFoes(dt) {
+				// The formation sways side to side and creeps downward, clamped so
+				// it never reaches the ship's lane.
+				const maxDrop = Math.max(0, H * 0.52 - 130 - form.rows * 44);
+				formDrop = Math.min(formDrop + dt * 7 * pace, maxDrop);
+				const sway = Math.max(
+					0,
+					Math.min(40, (W - (form.cols - 1) * form.gap) / 2 - 26),
+				);
+				const swayX = Math.sin(t * 0.9 * pace) * sway;
+				for (const e of foes) {
+					e.hitT = Math.max(e.hitT - dt, 0);
+					e.spin += dt * 1.5;
+					if (e.kind === "weave") {
+						e.y += 70 * pace * dt;
+						e.x = e.baseX + Math.sin(e.phase + t * 2.2 * pace) * e.amp;
+						e.x = Math.min(Math.max(e.x, 20), W - 20);
+						if (e.y > H - 70) {
+							// slipped past: loop back in from the top
+							e.y = -30;
+							e.baseX = 60 + Math.random() * Math.max(W - 120, 1);
+						}
+					} else {
+						const tx = form.x0 + e.col * form.gap + swayX;
+						const ty =
+							130 + e.row * 44 + formDrop + Math.sin(t * 3 + e.col) * 3;
+						const k = Math.min(1, dt * 3.5);
+						e.x += (tx - e.x) * k;
+						e.y += (ty - e.y) * k;
+					}
+				}
+			}
+
+			function stepShotHits() {
+				for (const s of shots) {
+					for (const e of foes) {
+						if (e.hp <= 0) continue;
+						const dx = s.x - e.x,
+							dy = s.y - e.y;
+						if (dx * dx + dy * dy < (e.r + 4) * (e.r + 4)) {
+							s.y = -999; // consume the shot
+							e.hp -= 1;
+							e.hitT = 0.08;
+							if (e.hp > 0) {
+								playdeck.sfx("bounce");
+								playdeck.burst(e.x, e.y, "#ffffff", 4);
+							} else kill(e);
+							break;
+						}
+					}
+				}
+				foes = foes.filter((e) => e.hp > 0);
+				shots = shots.filter((s) => s.y > -20);
+			}
+
+			function kill(e) {
+				const pts = e.kind === "armor" ? 20 : 10;
+				score += pts;
+				kills += 1;
+				sinceDrop += 1;
+				playdeck.sfx("hit");
+				playdeck.burst(e.x, e.y, e.c, e.kind === "armor" ? 18 : 12);
+				playdeck.pop(e.x, e.y - 18, `+${pts}`, e.c);
+				// Power-up drop: random, with a pity timer so every run sees some.
+				if (Math.random() < 0.12 || sinceDrop >= 10) {
+					sinceDrop = 0;
+					const pool = ship.shield
+						? ["spread", "rapid"]
+						: ["spread", "rapid", "shield"];
+					drops.push({
+						x: e.x,
+						y: e.y,
+						kind: pool[(Math.random() * pool.length) | 0],
+						t: 0,
+					});
+				}
+			}
+
+			function stepEnemyFire(dt) {
+				fireCD -= dt;
+				if (fireCD > 0) return;
+				fireCD = fireEvery * (0.7 + Math.random() * 0.6);
+				const shooters = foes.filter((e) => e.y > 100 && e.y < H * 0.6);
+				if (!shooters.length) return;
+				const e = shooters[(Math.random() * shooters.length) | 0];
+				// Loosely aimed at the ship, but never more than ~20° off vertical.
+				let a = Math.atan2(ship.x - e.x, ship.y - e.y);
+				a = Math.max(-0.35, Math.min(0.35, a));
+				const twin = lv >= 3 && Math.random() < Math.min(0.1 * (lv - 2), 0.4);
+				const spreads = twin ? [-0.15, 0.15] : [0];
+				for (const d of spreads) {
+					bolts.push({
+						x: e.x,
+						y: e.y + e.r,
+						vx: Math.sin(a + d) * boltSpeed,
+						vy: Math.cos(a + d) * boltSpeed,
+					});
+				}
+			}
+
+			function stepBolts(dt) {
+				for (const b of bolts) {
+					b.x += b.vx * dt;
+					b.y += b.vy * dt;
+				}
+				bolts = bolts.filter((b) => b.y < H + 20 && b.x > -20 && b.x < W + 20);
+			}
+
+			function stepDrops(dt) {
+				for (const d of drops) {
+					d.t += dt;
+					d.y += 130 * dt;
+					const dx = d.x - ship.x,
+						dy = d.y - ship.y;
+					if (dx * dx + dy * dy < 30 * 30) {
+						d.y = H + 100;
+						const p = POWERS[d.kind];
+						if (d.kind === "shield") ship.shield = true;
+						if (d.kind === "spread") ship.spreadT = POWER_TIME;
+						if (d.kind === "rapid") ship.rapidT = POWER_TIME;
+						playdeck.sfx("collect");
+						playdeck.burst(ship.x, ship.y, p.c, 16);
+						playdeck.pop(ship.x, ship.y - 36, p.label, p.c);
+						hud();
+					}
+				}
+				drops = drops.filter((d) => d.y < H + 20);
+			}
+
+			function checkShipHits() {
+				if (ship.invT > 0) return;
+				const R = 10; // forgiving hitbox, smaller than the ship sprite
+				let hit = false;
+				for (const b of bolts) {
+					const dx = b.x - ship.x,
+						dy = b.y - ship.y;
+					if (dx * dx + dy * dy < (R + 5) * (R + 5)) {
+						b.y = H + 100;
+						hit = true;
+					}
+				}
+				for (const e of foes) {
+					const dx = e.x - ship.x,
+						dy = e.y - ship.y;
+					if (dx * dx + dy * dy < (R + e.r) * (R + e.r)) {
+						e.hp = 0;
+						playdeck.burst(e.x, e.y, e.c, 12);
+						hit = true;
+					}
+				}
+				foes = foes.filter((e) => e.hp > 0);
+				if (!hit) return;
+				if (ship.shield) {
+					ship.shield = false;
+					ship.invT = 1;
+					playdeck.sfx("bad");
+					playdeck.burst(ship.x, ship.y, ACCENT, 20);
+					playdeck.pop(ship.x, ship.y - 36, "SHIELD BROKE", ACCENT);
+					hud();
+					return;
+				}
+				die();
+			}
+
+			function die() {
+				state = "over";
+				ship.alive = false;
+				playdeck.sfx("boom");
+				playdeck.shake(3);
+				playdeck.flash(BOLT);
+				playdeck.burst(ship.x, ship.y, ACCENT, 30);
+				playdeck.burst(ship.x, ship.y, BOLT, 16);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Shot down on wave ${wave + 1}/${waves}`);
+				}, 650);
+			}
+
+			function win() {
+				state = "over";
+				const bonus = 50 + (ship.shield ? 25 : 0);
+				score += bonus;
+				playdeck.sfx("good");
+				playdeck.flash(ACCENT);
+				playdeck.burst(ship.x, ship.y, ACCENT, 30);
+				playdeck.pop(W / 2, H * 0.4, "SWARM CLEARED!", ACCENT);
+				hud();
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						ship.shield
+							? `${kills} kills, shield intact`
+							: `${kills} kills, flawless`,
+					);
+				}, 700);
+			}
+
+			// ---- Drawing
+			function poly(x, y, r, sides, rot) {
+				ctx.beginPath();
+				for (let i = 0; i < sides; i++) {
+					const a = rot + (i / sides) * Math.PI * 2;
+					const px = x + Math.cos(a) * r,
+						py = y + Math.sin(a) * r;
+					if (i) ctx.lineTo(px, py);
+					else ctx.moveTo(px, py);
+				}
+				ctx.closePath();
+			}
+
+			function drawFoe(e) {
+				const c = e.hitT > 0 ? "#ffffff" : e.c;
+				ctx.shadowColor = e.c;
+				ctx.shadowBlur = 12;
+				ctx.strokeStyle = c;
+				ctx.lineWidth = 2.5;
+				if (e.kind === "weave") {
+					poly(e.x, e.y, e.r, 3, Math.PI / 2); // triangle pointing down
+				} else if (e.kind === "armor") {
+					poly(e.x, e.y, e.r + 2, 6, e.spin * 0.3);
+				} else {
+					poly(e.x, e.y, e.r, 4, Math.sin(e.spin) * 0.3);
+				}
+				ctx.globalAlpha = 0.25;
+				ctx.fillStyle = c;
+				ctx.fill();
+				ctx.globalAlpha = 1;
+				ctx.stroke();
+				// glowing core "eye"
+				ctx.fillStyle = c;
+				ctx.beginPath();
+				ctx.arc(
+					e.x,
+					e.y + 1,
+					e.kind === "armor" && e.hp > 1 ? 5 : 3.5,
+					0,
+					Math.PI * 2,
+				);
+				ctx.fill();
+			}
+
+			function drawShip() {
+				const { x, y } = ship;
+				if (ship.invT > 0 && Math.floor(ship.invT * 16) % 2) return; // i-frame flicker
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(ship.tilt * 0.25);
+				// engine flame
+				const fl = 8 + Math.random() * 8;
+				ctx.shadowColor = "#ffd24d";
+				ctx.shadowBlur = 14;
+				ctx.fillStyle = "#ffd24d";
+				ctx.beginPath();
+				ctx.moveTo(-5, 12);
+				ctx.lineTo(0, 12 + fl);
+				ctx.lineTo(5, 12);
+				ctx.fill();
+				// chevron hull
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 18;
+				ctx.strokeStyle = ACCENT;
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.moveTo(0, -20);
+				ctx.lineTo(16, 14);
+				ctx.lineTo(0, 6);
+				ctx.lineTo(-16, 14);
+				ctx.closePath();
+				ctx.globalAlpha = 0.3;
+				ctx.fillStyle = ACCENT;
+				ctx.fill();
+				ctx.globalAlpha = 1;
+				ctx.stroke();
+				if (ship.shield) {
+					ctx.globalAlpha = 0.6 + Math.sin(t * 8) * 0.2;
+					ctx.lineWidth = 2;
+					ctx.beginPath();
+					ctx.arc(0, -2, 28, 0, Math.PI * 2);
+					ctx.stroke();
+					ctx.globalAlpha = 1;
+				}
+				ctx.restore();
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				ctx.shadowBlur = 0;
+				// starfield
+				ctx.fillStyle = textColor;
+				for (const s of stars) {
+					ctx.globalAlpha = 0.15 + s.s * 0.25;
+					ctx.fillRect(s.x, s.y, 1.5, 2 + s.s * 4);
+				}
+				ctx.globalAlpha = 1;
+
+				// player shots
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 10;
+				ctx.strokeStyle = ship && ship.rapidT > 0 ? "#3dffa0" : ACCENT;
+				ctx.lineWidth = 3;
+				ctx.lineCap = "round";
+				ctx.beginPath();
+				for (const s of shots) {
+					ctx.moveTo(s.x, s.y);
+					ctx.lineTo(s.x - s.vx * 0.016, s.y - s.vy * 0.016);
+				}
+				ctx.stroke();
+
+				for (const e of foes) drawFoe(e);
+
+				// power-up capsules
+				for (const d of drops) {
+					const p = POWERS[d.kind];
+					const pulse = 1 + Math.sin(d.t * 10) * 0.12;
+					ctx.shadowColor = p.c;
+					ctx.shadowBlur = 16;
+					ctx.strokeStyle = p.c;
+					ctx.lineWidth = 2.5;
+					ctx.beginPath();
+					ctx.arc(d.x, d.y, 13 * pulse, 0, Math.PI * 2);
+					ctx.stroke();
+					ctx.fillStyle = p.c;
+					ctx.font = "bold 15px system-ui, sans-serif";
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					ctx.fillText(p.glyph, d.x, d.y + 1);
+				}
+
+				// enemy bolts: bright red orbs with a white core — easy to read
+				ctx.shadowColor = BOLT;
+				ctx.shadowBlur = 12;
+				for (const b of bolts) {
+					ctx.fillStyle = BOLT;
+					ctx.beginPath();
+					ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.fillStyle = "#ffffff";
+					ctx.beginPath();
+					ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2);
+					ctx.fill();
+				}
+
+				if (ship && ship.alive) drawShip();
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>
