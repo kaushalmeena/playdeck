@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { useTheme } from "../lib/theme";
 
 /** games get their sound palette from the kit — see lib/sfx for the full list */
@@ -28,6 +29,8 @@ export type GameProps = {
 	onEnd: (won: boolean, score: number) => void;
 	/** lets the feed lock scrolling while a run is live */
 	onPlayingChange?: (playing: boolean) => void;
+	/** page the feed to the next game — pass to GameChrome for the result screen */
+	onNext?: () => void;
 };
 
 export type GameResult = {
@@ -153,7 +156,6 @@ export function useThemeColor(token: string, fallback?: string): () => string {
 	const value = useRef(themeColor(token, fallback));
 	const { theme } = useTheme();
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `theme` is the trigger, not an input — the CSS variables this reads are what change with it
 	useEffect(() => {
 		value.current = themeColor(token, fallback);
 	}, [theme, token, fallback]);

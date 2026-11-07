@@ -27,7 +27,7 @@ export function GameTopBar({ level, chips, onQuit }: Props) {
 						sfx.quit();
 						onQuit();
 					}}
-					className="absolute top-16 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card/85 text-sm text-muted backdrop-blur-md"
+					className="absolute top-16 right-3 z-10 flex size-9 items-center justify-center rounded-full border border-line bg-card/85 text-sm text-muted backdrop-blur-md"
 				>
 					✕
 				</button>

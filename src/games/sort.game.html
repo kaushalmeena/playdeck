@@ -1,0 +1,373 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Swipe Sort" />
+		<meta name="playdeck:emoji" content="🗂️" />
+		<meta
+			name="playdeck:desc"
+			content="Fling every card into the right bin. Fast."
+		/>
+		<meta name="playdeck:order" content="29" />
+		<meta name="playdeck:accent" content="#00e5ff" />
+		<meta
+			name="playdeck:instructions"
+			content="Swipe each card left or right into the bin it belongs to — or tap a side, or use the arrow keys. Beat the card timer. Watch for SWAP!"
+		/>
+		<style>
+			.bin {
+				position: absolute;
+				top: 110px;
+				bottom: 110px;
+				width: 84px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 6px;
+				border: 2px dashed var(--c);
+				border-radius: 20px;
+				color: var(--c);
+				font-weight: 800;
+				font-size: 13px;
+				letter-spacing: 0.08em;
+				text-align: center;
+				opacity: 0.55;
+				transition:
+					opacity 0.2s,
+					box-shadow 0.2s,
+					transform 0.2s;
+			}
+			.bin b {
+				font-size: 34px;
+			}
+			#binL {
+				left: 10px;
+				--c: #ff5cd0;
+			}
+			#binR {
+				right: 10px;
+				--c: #00e5ff;
+			}
+			.bin.hit {
+				opacity: 1;
+				transform: scale(1.06);
+			}
+			.hot .bin {
+				opacity: 0.95;
+				box-shadow:
+					0 0 28px var(--c),
+					inset 0 0 22px var(--c);
+			}
+			#card {
+				position: absolute;
+				left: 50%;
+				top: 50%;
+				width: 132px;
+				height: 168px;
+				margin: -84px 0 0 -66px;
+				display: grid;
+				place-items: center;
+				font-size: 72px;
+				font-weight: 900;
+				color: var(--t-text);
+				background: var(--t-card, rgba(127, 127, 127, 0.15));
+				border: 2px solid var(--t-line, rgba(127, 127, 127, 0.3));
+				border-radius: 22px;
+				box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+				visibility: hidden;
+			}
+			#card.bad {
+				border-color: var(--t-danger);
+				background: color-mix(in srgb, var(--t-danger) 35%, transparent);
+				animation: shake 0.3s;
+			}
+			@keyframes shake {
+				25% {
+					margin-left: -78px;
+				}
+				75% {
+					margin-left: -54px;
+				}
+			}
+			#banner {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 30%;
+				text-align: center;
+				font-size: 54px;
+				font-weight: 900;
+				color: var(--t-danger);
+				opacity: 0;
+				transform: scale(0.6);
+				transition:
+					opacity 0.2s,
+					transform 0.25s;
+				pointer-events: none;
+			}
+			#banner.show {
+				opacity: 1;
+				transform: scale(1.1);
+			}
+		</style>
+	</head>
+	<body>
+		<div id="binL" class="bin"></div>
+		<div id="binR" class="bin"></div>
+		<div id="card"></div>
+		<div id="banner">SWAP!</div>
+		<script>
+			const $ = (id) => document.getElementById(id);
+			const card = $("card"),
+				banner = $("banner");
+			const bins = { L: $("binL"), R: $("binR") };
+			const COL = { L: "#ff5cd0", R: "#00e5ff" };
+			const nums = (odd) =>
+				Array.from({ length: 50 }, (_, i) => i * 2 + odd).join(" ");
+			const PAIRS = [
+				[
+					["🍎", "FRUIT", "🍎 🍌 🍇 🍓 🍒 🍑 🍍 🥝 🍉 🍐"],
+					["🥦", "VEG", "🥦 🥕 🌽 🥬 🥒 🧅 🥔 🍆 🫑 🧄"],
+				],
+				[
+					["🔥", "HOT", "🔥 ☀️ 🌶️ ☕ 🌋 🍲 🫖 🧨"],
+					["❄️", "COLD", "❄️ 🧊 ⛄ 🍦 🥶 🐧 🏔️ 🍧"],
+				],
+				[
+					["🐾", "LAND", "🐶 🐱 🐘 🦒 🐻 🦊 🐰 🐴 🦁 🐢"],
+					["🐟", "SEA", "🐟 🐙 🦈 🐳 🦀 🐬 🦑 🐠 🦞 🪼"],
+				],
+				[
+					["2", "EVEN", nums(0)],
+					["1", "ODD", nums(1)],
+				],
+				[
+					["🚗", "ROAD", "🚗 🚌 🚲 🛵 🚚 🏎️ 🚜 🚓"],
+					["✈️", "SKY", "✈️ 🚁 🎈 🪁 🛸 🪂 🚀 🛩️"],
+				],
+			].map((p) =>
+				p.map(([icon, name, items]) => ({
+					icon,
+					name,
+					items: items.split(" "),
+				})),
+			);
+
+			let sides, goal, cardTime, cardLeft, sorted, lives, streak, score, level;
+			let item = null,
+				busy = false,
+				raf = 0,
+				last = 0,
+				hudAt = 0,
+				swapAt = -1;
+			let drag = null,
+				timers = [];
+			const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+			const pick = (a) => a[(Math.random() * a.length) | 0];
+
+			function hud() {
+				playdeck.hud({
+					chips: [`🗂️ ${sorted}/${goal}`, "❤️".repeat(lives) || "💔"],
+					progress: item ? Math.max(cardLeft / cardTime, 0) : 0,
+				});
+			}
+
+			function drawBins() {
+				for (const s of ["L", "R"])
+					bins[s].innerHTML = `<b>${sides[s].icon}</b>${sides[s].name}`;
+			}
+
+			function setCard(x, rot, ms) {
+				card.style.transition = ms
+					? `transform ${ms}ms ease-out, opacity ${ms}ms`
+					: "none";
+				card.style.transform = `translateX(${x}px) rotate(${rot}deg)`;
+			}
+
+			function deal() {
+				if (!playdeck.running) return;
+				const side = Math.random() < 0.5 ? "L" : "R";
+				item = { side, face: pick(sides[side].items) };
+				card.textContent = item.face;
+				card.className = "";
+				card.style.opacity = 1;
+				card.style.visibility = "visible";
+				setCard(0, 0, 0);
+				cardLeft = cardTime;
+				busy = false;
+			}
+
+			playdeck.onStart((o) => {
+				level = Math.max(1, Math.min(o.level || 1, 12));
+				const pool = PAIRS.slice(0, Math.min(1 + level, PAIRS.length));
+				const [a, b] = pick(pool);
+				sides = Math.random() < 0.5 ? { L: a, R: b } : { L: b, R: a };
+				goal = Math.min(12 + level, 20);
+				cardTime = Math.max(2.2 - level * 0.13, 0.95);
+				swapAt =
+					level >= 4 ? Math.floor(goal * (0.35 + Math.random() * 0.3)) : -1;
+				sorted = 0;
+				lives = 3;
+				streak = 0;
+				score = 0;
+				drag = null;
+				document.body.classList.remove("hot");
+				drawBins();
+				deal();
+				hud();
+				cancelAnimationFrame(raf);
+				last = performance.now();
+				raf = requestAnimationFrame(tick);
+			});
+
+			playdeck.onStop(() => {
+				cancelAnimationFrame(raf);
+				timers.forEach(clearTimeout);
+				timers = [];
+				item = null;
+				busy = true;
+				drag = null;
+				card.style.visibility = "hidden";
+				banner.className = "";
+			});
+
+			function tick(now) {
+				const dt = Math.min((now - last) / 1000, 0.05);
+				last = now;
+				if (!playdeck.running) return;
+				if (item && !busy) {
+					cardLeft -= dt;
+					if (cardLeft <= 0) miss(null, "⏰");
+				}
+				if (now - hudAt > 60) {
+					hudAt = now;
+					hud();
+				}
+				raf = requestAnimationFrame(tick);
+			}
+
+			function binPoint(side) {
+				const r = bins[side].getBoundingClientRect();
+				return [r.left + r.width / 2, r.top + r.height / 2];
+			}
+
+			function sortTo(side) {
+				if (!playdeck.running || !item || busy) return;
+				busy = true;
+				if (side !== item.side) return miss(side, "✖");
+				const fast = cardLeft > cardTime * 0.6;
+				const [x, y] = binPoint(side);
+				sorted += 1;
+				streak += 1;
+				score += 10 + (fast ? 5 : 0) + Math.min(streak, 10);
+				playdeck.sfx("good");
+				playdeck.burst(x, y, COL[side], 12);
+				playdeck.pop(x, y - 30, "+10", COL[side]);
+				if (fast)
+					later(
+						() =>
+							playdeck.pop(
+								innerWidth / 2,
+								innerHeight / 2 - 110,
+								"FAST!",
+								"#ffd24d",
+							),
+						60,
+					);
+				if (streak === 8) playdeck.sfx("collect");
+				document.body.classList.toggle("hot", streak >= 8);
+				bins[side].classList.add("hit");
+				later(() => bins[side].classList.remove("hit"), 160);
+				setCard(
+					side === "L" ? -innerWidth : innerWidth,
+					side === "L" ? -35 : 35,
+					220,
+				);
+				card.style.opacity = 0;
+				item = null;
+				hud();
+				if (sorted >= goal) return later(win, 260);
+				if (sorted === swapAt) return later(swap, 200);
+				later(deal, 170);
+			}
+
+			function miss(side, mark) {
+				busy = true;
+				streak = 0;
+				lives -= 1;
+				document.body.classList.remove("hot");
+				playdeck.sfx("bad");
+				playdeck.shake(1);
+				setCard(0, 0, 120);
+				card.className = "bad";
+				playdeck.pop(innerWidth / 2, innerHeight / 2 - 110, mark, "#ff4d6d");
+				item = null;
+				hud();
+				if (lives <= 0) return later(lose, 450);
+				later(deal, 480);
+			}
+
+			function swap() {
+				if (!playdeck.running) return;
+				sides = { L: sides.R, R: sides.L };
+				drawBins();
+				banner.className = "show";
+				playdeck.sfx("boom");
+				playdeck.flash("#ff4d6d");
+				card.style.visibility = "hidden";
+				later(() => {
+					banner.className = "";
+					deal();
+				}, 850);
+			}
+
+			function win() {
+				const bonus = 50 + lives * 20;
+				playdeck.flash(COL.R);
+				playdeck.end(
+					true,
+					score + bonus,
+					lives === 3
+						? "Flawless filing! 🗂️"
+						: `Sorted ${goal} — desk cleared!`,
+				);
+			}
+
+			function lose() {
+				playdeck.end(false, score, `Pile toppled at ${sorted}/${goal}`);
+			}
+
+			// ---- input: drag-to-fling, tap a half, or arrow keys
+			addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || !item || busy) return;
+				if (e.clientY < 90 || e.clientY > innerHeight - 90) return;
+				drag = { x0: e.clientX, t0: performance.now(), dx: 0, id: e.pointerId };
+				document.body.setPointerCapture(e.pointerId);
+			});
+			addEventListener("pointermove", (e) => {
+				if (!drag || e.pointerId !== drag.id) return;
+				drag.dx = e.clientX - drag.x0;
+				setCard(drag.dx, drag.dx * 0.08, 0);
+			});
+			function release(e) {
+				if (!drag || e.pointerId !== drag.id) return;
+				const { dx, t0, x0 } = drag;
+				drag = null;
+				if (!item || busy) return;
+				const v = dx / Math.max(performance.now() - t0, 1);
+				if (Math.abs(dx) > 70 || (Math.abs(dx) > 25 && Math.abs(v) > 0.5))
+					sortTo(dx < 0 ? "L" : "R");
+				else if (Math.abs(dx) < 10 && e.type === "pointerup")
+					sortTo(x0 < innerWidth / 2 ? "L" : "R");
+				else setCard(0, 0, 180);
+			}
+			addEventListener("pointerup", release);
+			addEventListener("pointercancel", release);
+			addEventListener("keydown", (e) => {
+				if (e.key === "ArrowLeft") sortTo("L");
+				if (e.key === "ArrowRight") sortTo("R");
+			});
+		</script>
+	</body>
+</html>

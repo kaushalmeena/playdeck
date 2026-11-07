@@ -8,7 +8,7 @@
 
 **Doomscrolling, except every card is a game you can win.**
 
-32 small games in an endless vertical feed. Swipe, play a thirty-second run,
+Dozens of small games in an endless vertical feed. Swipe, play a thirty-second run,
 level up. No sign-up, works offline.
 
 [**Try it live**](https://kaushalmeena.github.io/playdeck/)
@@ -41,13 +41,13 @@ delete it and it's gone.
 
 ## Tech Stack
 
-| Area        | Tools                                                                                                                    |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **App**     | [TanStack Start](https://tanstack.com/start) · [React](https://react.dev) · [TypeScript](https://www.typescriptlang.org)  |
-| **Styling** | [Tailwind CSS](https://tailwindcss.com)                                                                                  |
-| **Games**   | Canvas 2D · Web Audio                                                                                                    |
-| **Testing** | [Vitest](https://vitest.dev)                                                                                             |
-| **Tooling** | [Vite](https://vite.dev) · [Biome](https://biomejs.dev)                                                                  |
+| Area        | Tools                                                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **App**     | [TanStack Start](https://tanstack.com/start) · [React](https://react.dev) · [TypeScript](https://www.typescriptlang.org)         |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com)                                                                                          |
+| **Games**   | Canvas 2D · Web Audio                                                                                                            |
+| **Testing** | [Vitest](https://vitest.dev)                                                                                                     |
+| **Tooling** | [Vite](https://vite.dev) · [oxlint](https://oxc.rs/docs/guide/usage/linter) · [oxfmt](https://oxc.rs/docs/guide/usage/formatter) |
 
 ## Getting Started
 
@@ -129,7 +129,7 @@ Full documentation is available in the [`/docs`](./docs) directory.
 
 - [Adding a Game](./docs/adding-a-game.md) — the one-file contract, the run
   lifecycle, and the kit helpers.
-- [The Games](./docs/games.md) — all 32 games and how each one scales.
+- [The Games](./docs/games.md) — every game and how each one scales.
 
 **Under the Hood:**
 

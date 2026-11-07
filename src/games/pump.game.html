@@ -1,0 +1,577 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Pump It" />
+		<meta name="playdeck:emoji" content="🎈" />
+		<meta
+			name="playdeck:desc"
+			content="Pump the balloon, bank the cash. Just don't let it pop."
+		/>
+		<meta name="playdeck:order" content="15" />
+		<meta name="playdeck:accent" content="#ff4d6d" />
+		<meta
+			name="playdeck:instructions"
+			content="Hold (or hold Space) to pump the balloon — its value climbs faster the bigger it gets. Let go to bank it. Every balloon has a secret limit: watch for wobbles and colour shifts. Bank 5 balloons and hit the target."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+			.val {
+				position: fixed;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				font:
+					900 40px/1 system-ui,
+					sans-serif;
+				color: var(--t-text, #fff);
+				text-align: center;
+				pointer-events: none;
+				white-space: nowrap;
+				text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
+			}
+			.val small {
+				display: block;
+				font-size: 12px;
+				font-weight: 800;
+				letter-spacing: 0.25em;
+				opacity: 0.6;
+				margin-top: 6px;
+			}
+			/* a banked value flying up to the balloon tally */
+			.fly {
+				transition:
+					top 0.55s cubic-bezier(0.3, 0, 0.6, 1),
+					left 0.55s cubic-bezier(0.3, 0, 0.6, 1),
+					font-size 0.55s,
+					opacity 0.55s ease-in;
+				color: #ffd24d;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<div id="val" class="val"></div>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const valEl = document.getElementById("val");
+			const ACCENT = "#ff4d6d",
+				GOLD = "#ffd24d",
+				GOOD = "#3dffa0";
+			const BALLOONS = 5;
+			const MAX_VALUE = 400; // value of a balloon pumped all the way to 1.0
+			// balloon hues kept away from red so the "angry" shift towards red reads
+			const HUES = [200, 275, 160, 45, 315, 230];
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				cx = 0,
+				baseY = 0, // where the knot sits
+				rMax = 120,
+				rMin = 40,
+				slotY = 112;
+			let raf = 0,
+				state = "idle",
+				textCol = "#eaeaf2";
+
+			// tuning (set from level)
+			let target = 420,
+				hintRange = 0.24, // how far before the limit the hints start
+				hintStrength = 1, // how loud the hints are
+				inflRate = 0.42, // inflation per second
+				runTime = 24;
+
+			// run state
+			let idx = 0,
+				results = [],
+				total = 0,
+				timeLeft = 0,
+				clock = 0,
+				hudT = 0,
+				targetHit = false;
+			// current balloon
+			let phase = "ready", // ready | inflate | bank | popped
+				phaseT = 0,
+				x = 0, // inflation 0..1
+				limit = 0.6, // hidden pop point
+				hue = 200,
+				holding = false,
+				tickT = 0,
+				lift = 0, // banked balloons float off upwards
+				bits = [];
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				cx = W / 2;
+				baseY = H - 175;
+				rMax = Math.max(60, Math.min(W * 0.38, (H - 330) * 0.42, 165));
+				rMin = rMax * 0.3;
+				slotY = 112;
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			const valueOf = (v) => Math.floor(MAX_VALUE * v * v);
+			const radius = () => rMin + (rMax - rMin) * Math.min(x, 1.05);
+
+			// 0..1: how close we are to the hidden limit, scaled by the level's loudness
+			function hint() {
+				const h = (x - (limit - hintRange)) / hintRange;
+				return Math.min(Math.max(h, 0), 1) * hintStrength;
+			}
+
+			function hud(force) {
+				const now = performance.now();
+				if (!force && now - hudT < 200) return;
+				hudT = now;
+				playdeck.hud({
+					chips: [
+						`🎈 ${Math.min(idx + 1, BALLOONS)}/${BALLOONS}`,
+						`💰 ${total}/${target}`,
+					],
+					progress: Math.max(timeLeft / runTime, 0),
+				});
+			}
+
+			function newBalloon() {
+				phase = "ready";
+				phaseT = 0;
+				x = 0;
+				lift = 0;
+				holding = false; // a new balloon always needs a fresh press
+				limit = 0.3 + Math.random() * 0.7;
+				let h = HUES[(Math.random() * HUES.length) | 0];
+				if (h === hue) h = HUES[(HUES.indexOf(h) + 1) % HUES.length];
+				hue = h;
+				valEl.style.opacity = "1";
+			}
+
+			playdeck.onStart(({ level }) => {
+				textCol =
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--t-text")
+						.trim() || "#eaeaf2";
+				const L = Math.min(Math.max(level, 1), 8);
+				target = 420 + (L - 1) * 40;
+				hintRange = 0.26 - (L - 1) * 0.0115; // 0.26 → 0.18
+				hintStrength = 1 - (L - 1) * 0.057; // 1 → 0.6
+				inflRate = 0.3 + (L - 1) * 0.0045;
+				resize();
+				idx = total = clock = 0;
+				results = [];
+				bits = [];
+				timeLeft = runTime;
+				targetHit = false;
+				hue = -1;
+				newBalloon();
+				state = "run";
+				hud(true);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state === "run") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				holding = false;
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+				valEl.style.opacity = "0";
+				document.querySelectorAll(".fly").forEach((el) => el.remove());
+			});
+
+			// ---- input ----
+			function press() {
+				if (!playdeck.running || state !== "run") return;
+				if (phase !== "ready" && phase !== "inflate") return;
+				holding = true;
+				phase = "inflate";
+			}
+			function letGo() {
+				if (!holding) return;
+				holding = false;
+				if (state !== "run" || phase !== "inflate") return;
+				// a tiny puff isn't worth banking: just pause, keep the air in
+				if (valueOf(x) < 5) phase = "ready";
+				else bank();
+			}
+			canvas.addEventListener("pointerdown", (e) => {
+				try {
+					canvas.setPointerCapture(e.pointerId);
+				} catch {
+					// pointer already gone; the press still counts
+				}
+				press();
+			});
+			canvas.addEventListener("pointerup", letGo);
+			canvas.addEventListener("pointercancel", letGo);
+			addEventListener("keydown", (e) => {
+				if (e.code !== "Space" && e.code !== "Enter") return;
+				e.preventDefault();
+				if (!e.repeat) press();
+			});
+			addEventListener("keyup", (e) => {
+				if (e.code === "Space" || e.code === "Enter") letGo();
+			});
+
+			const balloonTop = () => baseY - radius() * 2.3;
+			const slotX = (i) => cx + (i - (BALLOONS - 1) / 2) * 44;
+
+			function bank() {
+				const ratio = x / limit;
+				const base = valueOf(x);
+				const mult = ratio >= 0.95 ? 1.5 : ratio >= 0.85 ? 1.2 : 1;
+				const gained = Math.round(base * mult);
+				total += gained;
+				results[idx] = { v: gained, popped: false };
+				phase = "bank";
+				phaseT = 0;
+				const top = balloonTop();
+				playdeck.sfx("collect");
+				playdeck.pop(cx, top - 10, `+${gained}`, GOLD);
+				playdeck.burst(cx, top + radius(), `hsl(${hue},90%,65%)`, 14);
+				if (mult > 1) {
+					const insane = mult > 1.2;
+					playdeck.sfx("good");
+					playdeck.pop(
+						cx,
+						top + radius() * 0.9,
+						insane ? "INSANE! ×1.5" : "RISKY! ×1.2",
+						insane ? ACCENT : GOLD,
+					);
+					playdeck.burst(
+						cx,
+						top + radius(),
+						insane ? ACCENT : GOLD,
+						insane ? 28 : 16,
+					);
+					if (insane) {
+						playdeck.flash(GOLD);
+						playdeck.shake(1);
+					}
+				}
+				flyValue(gained);
+				if (!targetHit && total >= target) {
+					targetHit = true;
+					setTimeout(() => {
+						if (state !== "run") return;
+						playdeck.flash(GOOD);
+						playdeck.pop(cx, H * 0.3, "TARGET HIT!", GOOD);
+					}, 350);
+				}
+				hud(true);
+			}
+
+			// Clone the big value text and send it up into the balloon's slot.
+			function flyValue(v) {
+				const el = document.createElement("div");
+				el.className = "val fly";
+				el.textContent = `+${v}`;
+				el.style.top = valEl.style.top;
+				el.style.left = `${cx}px`;
+				el.style.fontSize = valEl.style.fontSize;
+				document.body.appendChild(el);
+				valEl.style.opacity = "0";
+				requestAnimationFrame(() =>
+					requestAnimationFrame(() => {
+						el.style.top = `${slotY}px`;
+						el.style.left = `${slotX(idx)}px`;
+						el.style.fontSize = "16px";
+						el.style.opacity = "0";
+					}),
+				);
+				setTimeout(() => el.remove(), 650);
+			}
+
+			function popBalloon() {
+				const lost = valueOf(x);
+				const r = radius();
+				const cy = baseY - r * 1.15;
+				results[idx] = { v: lost, popped: true };
+				phase = "popped";
+				phaseT = 0;
+				holding = false;
+				valEl.style.opacity = "0";
+				playdeck.sfx("boom");
+				playdeck.shake(3);
+				playdeck.flash(ACCENT);
+				playdeck.burst(cx, cy, `hsl(${hue},90%,60%)`, 30);
+				playdeck.burst(cx, cy, "#ffffff", 12);
+				playdeck.pop(cx, cy - 10, `POP! −${lost}`, ACCENT);
+				// rubber shreds: little curved strips that tumble under gravity
+				for (let i = 0; i < 22; i++) {
+					const a = Math.random() * Math.PI * 2;
+					const sp = 250 + Math.random() * 550;
+					bits.push({
+						x: cx + Math.cos(a) * r * 0.6,
+						y: cy + Math.sin(a) * r * 0.7,
+						vx: Math.cos(a) * sp,
+						vy: Math.sin(a) * sp - 200,
+						rot: a,
+						vr: (Math.random() - 0.5) * 20,
+						size: 8 + Math.random() * 16,
+						life: 1,
+						col: `hsl(${hue},85%,${45 + Math.random() * 20}%)`,
+					});
+				}
+				hud(true);
+			}
+
+			function nextBalloon() {
+				idx += 1;
+				if (idx >= BALLOONS) finish();
+				else newBalloon();
+				hud(true);
+			}
+
+			function finish() {
+				state = "idle";
+				holding = false;
+				valEl.style.opacity = "0";
+				const won = total >= target;
+				const pops = results.filter((r) => r && r.popped).length;
+				hud(true);
+				playdeck.end(
+					won,
+					total,
+					won
+						? pops === 0
+							? `Nerves of steel · ${total}`
+							: `Banked ${total} · ${pops} popped`
+						: `Short by ${target - total}`,
+				);
+			}
+
+			function step(dt) {
+				clock += dt;
+				phaseT += dt;
+				timeLeft -= dt;
+				if (timeLeft <= 0) {
+					// out of time: whatever is in the balloon gets banked
+					if (phase === "inflate" && valueOf(x) >= 5) bank();
+					finish();
+					return;
+				}
+
+				if (phase === "inflate" && holding) {
+					x += inflRate * dt;
+					// the tick speeds up as the balloon (and the value) grows
+					tickT -= dt;
+					if (tickT <= 0) {
+						tickT = 0.17 - 0.1 * Math.min(x, 1);
+						playdeck.sfx("step");
+					}
+					if (x >= limit) popBalloon();
+				} else if (phase === "bank") {
+					lift += (300 + phaseT * 900) * dt;
+					if (phaseT > 0.7) nextBalloon();
+				} else if (phase === "popped") {
+					if (phaseT > 0.9) nextBalloon();
+				}
+
+				for (const b of bits) {
+					b.vy += 1300 * dt;
+					b.vx *= 1 - dt * 1.5;
+					b.x += b.vx * dt;
+					b.y += b.vy * dt;
+					b.rot += b.vr * dt;
+					b.life -= dt * 1.1;
+				}
+				bits = bits.filter((b) => b.life > 0);
+				hud(false);
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				drawSlots();
+				if (phase !== "popped") drawBalloon();
+				for (const b of bits) {
+					ctx.save();
+					ctx.translate(b.x, b.y);
+					ctx.rotate(b.rot);
+					ctx.globalAlpha = Math.min(b.life * 1.5, 1);
+					ctx.strokeStyle = b.col;
+					ctx.lineWidth = 5;
+					ctx.lineCap = "round";
+					ctx.beginPath();
+					ctx.arc(0, 0, b.size, 0, 1.3);
+					ctx.stroke();
+					ctx.restore();
+				}
+				ctx.globalAlpha = 1;
+				updateValueText();
+			}
+
+			// Five little balloons across the top: the run's tally.
+			function drawSlots() {
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				for (let i = 0; i < BALLOONS; i++) {
+					const sx = slotX(i);
+					const r = results[i];
+					ctx.globalAlpha = r ? 1 : i === idx ? 0.55 : 0.2;
+					ctx.fillStyle = r ? (r.popped ? "#6b6b7a" : GOLD) : textCol;
+					ctx.beginPath();
+					ctx.ellipse(sx, slotY, 11, 13, 0, 0, Math.PI * 2);
+					ctx.fill();
+					if (r) {
+						ctx.font = "800 10px system-ui, sans-serif";
+						ctx.fillStyle = r.popped ? ACCENT : textCol;
+						ctx.fillText(r.popped ? "✕" : `${r.v}`, sx, slotY + 25);
+					}
+				}
+				ctx.globalAlpha = 1;
+			}
+
+			function drawBalloon() {
+				const r = radius();
+				const h = phase === "inflate" || phase === "ready" ? hint() : 0;
+				// hints: a shiver that grows, a squash pulse, and a hot-red flush (drawn below)
+				const wob = Math.sin(clock * 38) * h * 8 + Math.sin(clock * 2.2) * 2;
+				const rot =
+					Math.sin(clock * 23) * h * 0.09 + Math.sin(clock * 1.7) * 0.03;
+				const squash = 1 + Math.sin(clock * 47) * h * 0.04;
+				const hh = hue;
+				const sat = 80 + h * 15;
+				const light =
+					56 + Math.min(x, 1) * 6 - h * 6 + Math.sin(clock * 30) * h * 4;
+				const knotY = baseY - lift;
+				const cy = knotY - r * 1.15;
+
+				// string, swaying a little
+				ctx.strokeStyle = textCol;
+				ctx.globalAlpha = 0.45;
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.moveTo(cx + wob, knotY);
+				const sway = Math.sin(clock * 3) * 10;
+				ctx.bezierCurveTo(
+					cx + sway + 12,
+					knotY + 25,
+					cx - sway - 12,
+					knotY + 45,
+					cx + sway * 0.5,
+					knotY + 70,
+				);
+				ctx.stroke();
+				ctx.globalAlpha = 1;
+
+				ctx.save();
+				ctx.translate(cx + wob, cy);
+				ctx.rotate(rot);
+				ctx.scale(1 / squash, squash);
+				// body: glossy radial gradient with a coloured glow
+				ctx.shadowColor =
+					h > 0.15
+						? `rgba(255,45,61,${0.4 + h * 0.5})`
+						: `hsla(${hh},${sat}%,${light}%,0.65)`;
+				ctx.shadowBlur = 30 + h * 30;
+				const g = ctx.createRadialGradient(
+					-r * 0.35,
+					-r * 0.45,
+					r * 0.08,
+					0,
+					0,
+					r * 1.2,
+				);
+				g.addColorStop(0, `hsl(${hh},${sat}%,${Math.min(light + 26, 92)}%)`);
+				g.addColorStop(0.45, `hsl(${hh},${sat}%,${light}%)`);
+				g.addColorStop(1, `hsl(${hh},${sat}%,${light - 24}%)`);
+				ctx.fillStyle = g;
+				ctx.beginPath();
+				ctx.ellipse(0, 0, r, r * 1.12, 0, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.shadowBlur = 0;
+				// near the limit the skin flushes red, whatever colour it started as
+				if (h > 0) {
+					const red = ctx.createRadialGradient(
+						-r * 0.35,
+						-r * 0.45,
+						r * 0.08,
+						0,
+						0,
+						r * 1.2,
+					);
+					red.addColorStop(0, "#ffb3a8");
+					red.addColorStop(0.45, "#ff2d3d");
+					red.addColorStop(1, "#8a0016");
+					ctx.globalAlpha = Math.min(h * 1.15, 0.95);
+					ctx.fillStyle = red;
+					ctx.fill();
+					ctx.globalAlpha = 1;
+				}
+				// knot
+				ctx.fillStyle = `hsl(${hh},${sat}%,${light - 18}%)`;
+				ctx.beginPath();
+				ctx.moveTo(0, r * 1.1);
+				ctx.lineTo(-7, r * 1.15 + 9);
+				ctx.lineTo(7, r * 1.15 + 9);
+				ctx.closePath();
+				ctx.fill();
+				// shine
+				ctx.globalAlpha = 0.6;
+				ctx.fillStyle = "#ffffff";
+				ctx.beginPath();
+				ctx.ellipse(
+					-r * 0.4,
+					-r * 0.48,
+					r * 0.13,
+					r * 0.28,
+					0.6,
+					0,
+					Math.PI * 2,
+				);
+				ctx.fill();
+				ctx.globalAlpha = 0.35;
+				ctx.beginPath();
+				ctx.ellipse(
+					-r * 0.12,
+					-r * 0.82,
+					r * 0.06,
+					r * 0.06,
+					0,
+					0,
+					Math.PI * 2,
+				);
+				ctx.fill();
+				ctx.restore();
+				ctx.globalAlpha = 1;
+			}
+
+			// The big value number rides above the balloon, growing and pulsing as it inflates.
+			function updateValueText() {
+				if (state !== "run" || phase === "bank" || phase === "popped") return;
+				const v = valueOf(x);
+				const top = Math.max(balloonTop() - 44, slotY + 70);
+				const size = 34 + 46 * Math.min(x, 1);
+				const pulse =
+					phase === "inflate" && holding ? 1 + Math.sin(clock * 16) * 0.07 : 1;
+				valEl.style.top = `${top}px`;
+				valEl.style.fontSize = `${size}px`;
+				valEl.style.transform = `translate(-50%, -50%) scale(${pulse})`;
+				valEl.innerHTML =
+					v > 0
+						? `${v}<small>${holding ? "LET GO TO BANK" : "HOLD TO PUMP"}</small>`
+						: `🎈<small>HOLD TO PUMP</small>`;
+			}
+		</script>
+	</body>
+</html>

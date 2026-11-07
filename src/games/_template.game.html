@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+	Playdeck HTML game template — plug and play, no build step, no React.
+
+	1. Copy to src/games/<your-game>.game.html (no leading underscore).
+	2. Fill in the playdeck:* meta tags. That is the whole registration.
+	3. Write the game with plain HTML/CSS/JS. `window.playdeck` is injected
+	   before your scripts run:
+
+	     playdeck.onStart(({ level }) => …)   reset and begin a run
+	     playdeck.onStop(() => …)             player quit / scrolled away
+	     playdeck.end(won, score, note?)      report the run, once
+	     playdeck.hud({ chips, progress })    HUD chips + 0..1 timer bar
+	     playdeck.sfx("good")                 good bad step pop hit boom
+	                                          bounce collect flap merge
+	     playdeck.tone(freq, dur)             a musical note (Hz, s)
+	     playdeck.pop(x, y, "+10", color?)    floating score text
+	     playdeck.burst(x, y, color?, n?)     particle burst
+	     playdeck.shake(0..3)                 screen shake
+	     playdeck.flash(color?)               full-stage flash
+
+	The game runs in a sandboxed iframe: no localStorage, no cookies, no
+	network to the app. Theme colours arrive as CSS variables (--t-text,
+	--t-accent, --t-good, --t-danger, …). The page background is transparent
+	so the shared stage shows through.
+-->
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="My HTML Game" />
+		<meta name="playdeck:emoji" content="🧪" />
+		<meta
+			name="playdeck:desc"
+			content="One-line description shown on the card."
+		/>
+		<meta name="playdeck:order" content="99" />
+		<meta name="playdeck:accent" content="#7c5cff" />
+		<meta name="playdeck:instructions" content="Tap the target 10 times." />
+		<style>
+			body {
+				display: grid;
+				place-items: center;
+			}
+			button {
+				font-size: 96px;
+				background: none;
+				border: 0;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<button id="target" type="button">🎯</button>
+		<script>
+			let taps = 0;
+			let goal = 10;
+
+			playdeck.onStart(({ level }) => {
+				taps = 0;
+				goal = 10 + level * 2;
+				playdeck.hud({ chips: [`0/${goal}`] });
+			});
+
+			document.getElementById("target").addEventListener("pointerdown", (e) => {
+				if (!playdeck.running) return;
+				taps += 1;
+				playdeck.sfx("good");
+				playdeck.pop(e.clientX, e.clientY - 20, "+5");
+				playdeck.hud({ chips: [`${taps}/${goal}`] });
+				if (taps >= goal) playdeck.end(true, taps * 5);
+			});
+		</script>
+	</body>
+</html>

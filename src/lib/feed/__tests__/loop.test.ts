@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { listIndex, startIndex, VIRTUAL_COUNT, virtualCount } from "../loop";
 
 const DECK = 32;

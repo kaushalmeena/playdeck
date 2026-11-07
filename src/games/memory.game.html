@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Mind Match" />
+		<meta name="playdeck:emoji" content="🧠" />
+		<meta
+			name="playdeck:desc"
+			content="Match all the pairs before the clock melts."
+		/>
+		<meta name="playdeck:order" content="18" />
+		<meta name="playdeck:accent" content="#d637a4" />
+		<meta
+			name="playdeck:instructions"
+			content="Flip tiles and find every pair before the timer runs out. Each match adds a little time, and back-to-back matches build a combo bonus. Higher levels: more pairs, less time."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: manipulation;
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			#wrap {
+				position: absolute;
+				inset: 100px 16px 100px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			#grid {
+				display: flex;
+				flex-wrap: wrap;
+				justify-content: center;
+				gap: 10px;
+			}
+			.tile {
+				position: relative;
+				width: var(--size);
+				height: var(--size);
+				perspective: 500px;
+				cursor: pointer;
+			}
+			.face {
+				position: absolute;
+				inset: 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 14px;
+				border: 1px solid var(--t-line, #33334a);
+				backface-visibility: hidden;
+				-webkit-backface-visibility: hidden;
+				transition: transform 0.22s ease-out;
+			}
+			.back {
+				background: linear-gradient(
+					135deg,
+					var(--t-card, #23233a),
+					color-mix(in srgb, #d637a4 18%, var(--t-card, #23233a))
+				);
+			}
+			.back::after {
+				content: "?";
+				font:
+					700 calc(var(--size) * 0.36) system-ui,
+					sans-serif;
+				color: color-mix(in srgb, #d637a4 55%, var(--t-muted, #9a9ab0));
+			}
+			.front {
+				background: var(--t-surface, #1b1b2c);
+				border-color: #d637a4;
+				font-size: calc(var(--size) * 0.46);
+				transform: rotateY(180deg);
+			}
+			.tile.open .back {
+				transform: rotateY(-180deg);
+			}
+			.tile.open .front {
+				transform: rotateY(0deg);
+			}
+			.tile.done .front {
+				border-color: var(--t-good, #3dffa0);
+				background: color-mix(
+					in srgb,
+					var(--t-good, #3dffa0) 14%,
+					var(--t-surface, #1b1b2c)
+				);
+				animation: matched 0.35s ease-out;
+			}
+			.tile.done {
+				opacity: 0.6;
+				transition: opacity 0.4s 0.3s;
+			}
+			.tile.wrong .front {
+				border-color: var(--t-danger, #ff4d6d);
+				animation: wobble 0.3s ease-in-out;
+			}
+			@keyframes matched {
+				50% {
+					transform: scale(1.18);
+				}
+			}
+			@keyframes wobble {
+				25% {
+					transform: translateX(-5px);
+				}
+				75% {
+					transform: translateX(5px);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="wrap"><div id="grid"></div></div>
+		<script>
+			const grid = document.getElementById("grid");
+			const EMOJIS = [
+				"🍕",
+				"🚀",
+				"🐙",
+				"🌵",
+				"🎧",
+				"🪩",
+				"🍩",
+				"👾",
+				"🌈",
+				"🔮",
+			];
+			const PINK = "#d637a4",
+				GOOD = "#3dffa0",
+				GOLD = "#ffd24d";
+			const MATCH_TIME = 1.5; // seconds added per match
+
+			let state = "idle",
+				raf = 0,
+				endTimer = 0,
+				flipTimer = 0;
+			let pairs = 0,
+				total = 0,
+				timeLeft = 0,
+				matched = 0,
+				score = 0,
+				combo = 0,
+				bestCombo = 0,
+				hudT = 0;
+			let tiles = [], // { el, emoji, state: "closed" | "open" | "done" }
+				open = [],
+				lock = false;
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`${matched}/${pairs} PAIRS`,
+						combo > 1 ? `🔥 ×${combo}` : `${Math.ceil(timeLeft)}s`,
+					],
+					progress: Math.min(timeLeft / total, 1),
+				});
+			}
+
+			function layout() {
+				const n = tiles.length;
+				const cols = n <= 6 ? 3 : 4;
+				const rows = Math.ceil(n / cols);
+				const availW = innerWidth - 32,
+					availH = innerHeight - 200;
+				const size = Math.floor(
+					Math.min(
+						(availW - (cols - 1) * 10) / cols,
+						(availH - (rows - 1) * 10) / rows,
+						88,
+					),
+				);
+				grid.style.setProperty("--size", `${size}px`);
+				grid.style.width = `${cols * size + (cols - 1) * 10}px`;
+			}
+			addEventListener("resize", layout);
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				pairs = Math.min(4 + L, 10);
+				total = Math.min(Math.max(pairs * 4.5 - L, pairs * 2.5 + 4), 34);
+				timeLeft = total;
+				matched = score = combo = bestCombo = hudT = 0;
+				open = [];
+				lock = false;
+				clearTimeout(endTimer);
+				clearTimeout(flipTimer);
+				buildDeck();
+				state = "run";
+				hud();
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.1);
+					last = now;
+					step(dt);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				clearTimeout(flipTimer);
+				cancelAnimationFrame(raf);
+				grid.textContent = "";
+				tiles = [];
+			});
+
+			function buildDeck() {
+				grid.textContent = "";
+				const deck = [...EMOJIS.slice(0, pairs), ...EMOJIS.slice(0, pairs)]
+					.map((emoji) => ({ emoji, r: Math.random() }))
+					.sort((a, b) => a.r - b.r);
+				tiles = deck.map(({ emoji }) => {
+					const el = document.createElement("div");
+					el.className = "tile";
+					el.innerHTML = `<div class="face back"></div><div class="face front">${emoji}</div>`;
+					const t = { el, emoji, state: "closed" };
+					el.addEventListener("pointerdown", () => flip(t));
+					grid.appendChild(el);
+					return t;
+				});
+				layout();
+			}
+
+			const centerOf = (t) => {
+				const r = t.el.getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			};
+
+			function flip(t) {
+				if (
+					!playdeck.running ||
+					state !== "run" ||
+					lock ||
+					t.state !== "closed"
+				)
+					return;
+				t.state = "open";
+				t.el.classList.add("open");
+				playdeck.sfx("step");
+				open.push(t);
+				if (open.length < 2) return;
+
+				const [a, b] = open;
+				open = [];
+				if (a.emoji === b.emoji) match(a, b);
+				else mismatch(a, b);
+			}
+
+			function match(a, b) {
+				for (const t of [a, b]) {
+					t.state = "done";
+					t.el.classList.add("done");
+				}
+				matched += 1;
+				combo += 1;
+				bestCombo = Math.max(bestCombo, combo);
+				timeLeft += MATCH_TIME;
+				// consecutive matches without a miss stack a growing bonus
+				const pts = 20 + Math.min(combo - 1, 4) * 10;
+				score += pts;
+				const pa = centerOf(a),
+					pb = centerOf(b);
+				playdeck.burst(pa.x, pa.y, GOOD, 10);
+				playdeck.burst(pb.x, pb.y, GOOD, 10);
+				if (combo > 1) {
+					playdeck.sfx("merge", 2 ** Math.min(combo + 1, 10));
+					playdeck.pop(pb.x, pb.y - 34, `COMBO ×${combo}`, GOLD);
+				} else {
+					playdeck.sfx("good");
+				}
+				playdeck.pop(pb.x, pb.y - 12, `+${pts}`, combo > 1 ? GOLD : GOOD);
+				playdeck.pop(pa.x, pa.y - 12, `+${MATCH_TIME}s`, PINK);
+				hud();
+				if (matched >= pairs) win();
+			}
+
+			function mismatch(a, b) {
+				combo = 0;
+				lock = true;
+				playdeck.sfx("bad");
+				for (const t of [a, b]) t.el.classList.add("wrong");
+				flipTimer = setTimeout(() => {
+					for (const t of [a, b]) {
+						t.state = "closed";
+						t.el.classList.remove("open", "wrong");
+					}
+					lock = false;
+				}, 600);
+				hud();
+			}
+
+			function step(dt) {
+				if (state !== "run") return;
+				timeLeft -= dt;
+				hudT += dt;
+				if (hudT > 0.2) {
+					hudT = 0;
+					hud();
+				}
+				if (timeLeft <= 0) lose();
+			}
+
+			function lose() {
+				state = "dying";
+				timeLeft = 0;
+				hud();
+				clearTimeout(flipTimer);
+				playdeck.sfx("boom");
+				playdeck.shake(2);
+				// show what was left before the result card
+				for (const t of tiles)
+					if (t.state !== "done") t.el.classList.add("open", "wrong");
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Time's up at ${matched}/${pairs}`);
+				}, 800);
+			}
+
+			function win() {
+				state = "won";
+				const bonus = Math.ceil(timeLeft) * 3;
+				score += 30 + bonus;
+				playdeck.flash(PINK);
+				playdeck.sfx("good");
+				const r = grid.getBoundingClientRect();
+				playdeck.burst(r.left + r.width / 2, r.top + r.height / 2, GOLD, 30);
+				playdeck.pop(r.left + r.width / 2, r.top - 10, "ALL MATCHED!", GOLD);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						bestCombo > 2
+							? `Best combo ×${bestCombo}`
+							: `Cleared with ${Math.ceil(timeLeft)}s left`,
+					);
+				}, 500);
+			}
+		</script>
+	</body>
+</html>

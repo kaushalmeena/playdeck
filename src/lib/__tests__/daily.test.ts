@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import type { GameEntry } from "../../games/registry";
 import { DAILY_SIZE, dailyGames, dateKey } from "../daily";
 

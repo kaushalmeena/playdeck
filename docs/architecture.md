@@ -13,12 +13,16 @@ src/
   components/
     feed/          GameFeed · FeedHeader · FeedTabs · FeedStats
                    GameCard · CardRail · CardStates · NavArrows …
-    game/          GameChrome · GameOverlay · GameTopBar · Chip
+    game/          GameChrome · GameOverlay · GameTopBar · Chip · JuiceLayer
   hooks/           useInfiniteFeed · useRunRecorder · useShuffledGames
+                   useAutoJuice · useCountUp
   lib/
     feed/          wheel · loop · ordering · progression   (pure)
+    juice · autojuice · streak                             (pure)
     daily · storage · sfx · share · celebrate · theme
-  games/           *.game.tsx — one self-contained game each
+  games/           *.game.tsx / *.game.html — one self-contained game each
+    html/          HTML-game host: meta parser, SDK bridge, iframe host
+plugins/           html-game — Vite plugin that reads HTML games' meta tags
 ```
 
 `GameFeed` is ~135 lines of composition; it owns no scroll maths, no scoring
@@ -50,7 +54,7 @@ pad:
 - A **plain time cooldown** lets the inertia tail page by itself, so one flick
   travels several cards.
 
-So the pager arms on *intent* rather than on time. It arms when input begins
+So the pager arms on _intent_ rather than on time. It arms when input begins
 after a quiet gap, or when the delta jumps sharply — inertia only ever
 decays, so a sudden increase means the user pushed again. A sustained-input
 escape hatch re-arms after 600 ms of continuous above-floor scrolling, which
@@ -114,6 +118,26 @@ Its per-game callbacks are built once per game list and **never change
 identity**. A feed re-render must not hand a running game a new `onEnd`, or
 the effect holding its animation loop would tear down mid-run.
 
+## Juice
+
+Every run gets particles, floating text, streak callouts, shakes and
+flashes without the game wiring any of it.
+
+- [`lib/juice`](../src/lib/juice.ts) is a tiny event bus (`pop`, `burst`,
+  `shake`, `flash`, `callout`) in viewport coordinates. Only one run owns the
+  screen, so one global bus is enough.
+- [`JuiceLayer`](../src/components/game/JuiceLayer.tsx) sits inside
+  `GameChrome`, subscribes while its run is live and renders the effects.
+- [`lib/autojuice`](../src/lib/autojuice.ts) maps the `sfx` cues games
+  already play to effects: a burst where the player just tapped (only if the
+  tap was within 350 ms), `×N` pops from the third consecutive hit, a callout
+  and rising `sfx.streak` at 5/10/15/25/40, and a shake on `bad`/`boom`.
+  [`useAutoJuice`](../src/hooks/useAutoJuice.ts) wires it up per run.
+- Games can also call `juice.*` directly for effects at a precise spot (HTML
+  games do it through `playdeck.pop/burst/shake/flash`).
+
+`prefers-reduced-motion` drops shakes and particles and shortens the rest.
+
 ## Persistence
 
 Everything lives in one `localStorage` key behind a
@@ -125,15 +149,20 @@ place.
 
 ## Testing
 
-The pure modules are covered directly — 48 tests, no DOM, no rendering:
+The pure modules are covered directly — no DOM, no rendering:
 
-| Suite         | Covers                                                     |
+| Suite         | Covers                                                      |
 | ------------- | ----------------------------------------------------------- |
-| `wheel`       | Paging, inertia rejection, and the never-latch guarantee     |
-| `loop`        | Wrap arithmetic and that a wrap keeps the same card visible  |
-| `progression` | Unlock waves and thresholds agreeing with each other         |
-| `ordering`    | Seeded shuffle determinism and per-tab list selection        |
-| `daily`       | Date keys, and that a date always yields the same set        |
+| `wheel`       | Paging, inertia rejection, and the never-latch guarantee    |
+| `loop`        | Wrap arithmetic and that a wrap keeps the same card visible |
+| `progression` | Unlock waves and thresholds agreeing with each other        |
+| `ordering`    | Seeded shuffle determinism and per-tab list selection       |
+| `daily`       | Date keys, and that a date always yields the same set       |
+| `streak`      | Streak window, breaks, and milestone callouts               |
+| `autojuice`   | Which cue makes which effect, and stale-pointer suppression |
+| `juice`       | Burst particle spread and bus subscribe/unsubscribe         |
+| `html/meta`   | `playdeck:*` meta parsing, defaults and loud failures       |
+| `html/bridge` | SDK injection point and validation of frame messages        |
 
 Tests sit in `__tests__` folders next to the code they cover. Two real bugs
 came out of writing them: the daily picker returned a short set when the game

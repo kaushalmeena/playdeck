@@ -1,0 +1,417 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Neon Snake" />
+		<meta name="playdeck:emoji" content="🐍" />
+		<meta
+			name="playdeck:desc"
+			content="Swipe to steer. Eat the orbs, don't eat yourself."
+		/>
+		<meta name="playdeck:order" content="3" />
+		<meta name="playdeck:accent" content="#12b76a" />
+		<meta
+			name="playdeck:instructions"
+			content="Swipe (or arrow keys) to steer. Eat the glowing orbs to clear the level — quick bites chain a combo, and golden orbs count double. Walls and your own tail are fatal."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ORB = "#3dffa0";
+			const GOLD = "#ffd24d";
+			const COMBO_MS = 3000; // eat again within this to keep the combo
+
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			// grid
+			let cols = 17,
+				rows = 25,
+				cell = 20,
+				ox = 0,
+				oy = 0;
+			// run
+			let state = "idle"; // idle | run | dying | won
+			let snake = [],
+				dir = { x: 1, y: 0 },
+				queue = [];
+			let food = { x: 0, y: 0 },
+				gold = null; // { x, y, until }
+			let eaten = 0,
+				goal = 5,
+				score = 0,
+				combo = 0,
+				lastEat = 0;
+			let tickMs = 150,
+				minTick = 70,
+				acc = 0;
+			let raf = 0,
+				endTimer = 0;
+			let debris = []; // death explosion pieces
+			let ink = "#eaeaf2",
+				line = "rgba(255,255,255,.12)";
+
+			function themeVar(name, fallback) {
+				return (
+					getComputedStyle(document.documentElement)
+						.getPropertyValue(name)
+						.trim() || fallback
+				);
+			}
+
+			// grid dimensions are fixed for a run; a resize only rescales the cell
+			function fitCells() {
+				const availW = W - 16;
+				const availH = H - 200; // keep the top/bottom 90px+ clear for HUD + caption
+				cell = Math.max(Math.floor(Math.min(availW / cols, availH / rows)), 8);
+				ox = Math.floor((W - cols * cell) / 2);
+				oy = 100 + Math.floor((availH - rows * cell) / 2);
+			}
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				fitCells();
+				if (state !== "idle") draw(performance.now());
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			const cx = (gx) => ox + gx * cell + cell / 2;
+			const cy = (gy) => oy + gy * cell + cell / 2;
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`🍏 ${eaten}/${goal}`,
+						`${score} PTS`,
+						...(combo >= 2 ? [`COMBO ×${Math.min(combo, 5)}`] : []),
+					],
+				});
+			}
+
+			function occupied(x, y) {
+				return snake.some((s) => s.x === x && s.y === y);
+			}
+
+			function freeCell() {
+				let p;
+				do {
+					p = { x: (Math.random() * cols) | 0, y: (Math.random() * rows) | 0 };
+				} while (
+					occupied(p.x, p.y) ||
+					(food && p.x === food.x && p.y === food.y) ||
+					(gold && p.x === gold.x && p.y === gold.y)
+				);
+				return p;
+			}
+
+			playdeck.onStart(({ level }) => {
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ink = themeVar("--t-text", "#eaeaf2");
+				line = themeVar("--t-line", "rgba(255,255,255,.12)");
+				const lv = Math.min(level, 12);
+				goal = Math.min(6 + lv, 16);
+				tickMs = Math.max(150 - lv * 7, 80);
+				minTick = Math.max(tickMs - 50, 62);
+
+				// pick a grid that suits the screen, roughly 17 cells across
+				const c0 = Math.floor(Math.min(W - 16, H - 200) / 17);
+				cell = Math.max(c0, 14);
+				cols = Math.max(Math.floor((W - 16) / cell), 10);
+				rows = Math.max(Math.floor((H - 200) / cell), 10);
+				fitCells();
+
+				const midY = (rows / 2) | 0;
+				snake = [
+					{ x: 5, y: midY },
+					{ x: 4, y: midY },
+					{ x: 3, y: midY },
+				];
+				dir = { x: 1, y: 0 };
+				queue = [];
+				food = null;
+				gold = null;
+				food = freeCell();
+				eaten = 0;
+				score = 0;
+				combo = 0;
+				lastEat = 0;
+				acc = 0;
+				debris = [];
+				state = "run";
+				hud();
+
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					if (state === "run") {
+						acc += dt * 1000;
+						// fixed-rate grid ticks, at most a couple per frame
+						let n = 0;
+						while (acc >= tickMs && state === "run" && n++ < 3) {
+							acc -= tickMs;
+							tick(now);
+						}
+						if (gold && now > gold.until) gold = null;
+					}
+					for (const d of debris) {
+						d.x += d.vx * dt;
+						d.y += d.vy * dt;
+						d.vy += 500 * dt;
+						d.life -= dt;
+					}
+					draw(now);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function tick(now) {
+				if (queue.length) dir = queue.shift();
+				const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+				const willGrow =
+					(head.x === food.x && head.y === food.y) ||
+					(gold && head.x === gold.x && head.y === gold.y);
+				// the tail tip moves out of the way this tick unless we're growing
+				const body = willGrow ? snake : snake.slice(0, -1);
+				if (
+					head.x < 0 ||
+					head.y < 0 ||
+					head.x >= cols ||
+					head.y >= rows ||
+					body.some((s) => s.x === head.x && s.y === head.y)
+				) {
+					die(now);
+					return;
+				}
+				snake.unshift(head);
+				if (head.x === food.x && head.y === food.y) {
+					eat(now, 1, ORB);
+					food = freeCell();
+					// sometimes a golden orb shows up for a few seconds
+					if (!gold && eaten < goal - 1 && Math.random() < 0.35) {
+						gold = { ...freeCell(), until: now + 5000 };
+					}
+				} else if (gold && head.x === gold.x && head.y === gold.y) {
+					gold = null;
+					eat(now, 2, GOLD);
+				} else {
+					snake.pop();
+				}
+				if (state === "run" && eaten >= goal) win();
+			}
+
+			function eat(now, worth, colour) {
+				combo = now - lastEat < COMBO_MS ? combo + 1 : 1;
+				lastEat = now;
+				const m = Math.min(combo, 5);
+				const pts = (worth === 2 ? 40 : 10) * m;
+				score += pts;
+				eaten += worth;
+				// every orb nudges the pace up a notch
+				tickMs = Math.max(tickMs - 4, minTick);
+				const x = cx(snake[0].x),
+					y = cy(snake[0].y);
+				playdeck.burst(x, y, colour, worth === 2 ? 26 : 12);
+				playdeck.pop(x, y - 18, `+${pts}`, colour);
+				if (worth === 2) {
+					playdeck.pop(x, y - 44, "GOLDEN ×2", GOLD);
+					playdeck.shake(1);
+				} else if (m >= 2) playdeck.pop(x, y + 22, `COMBO ×${m}`, "#ffd24d");
+				if (m >= 2) playdeck.sfx("merge", 2 ** Math.min(m + 1, 11));
+				else playdeck.sfx("collect");
+				hud();
+			}
+
+			function die(now) {
+				state = "dying";
+				const hx = cx(snake[0].x),
+					hy = cy(snake[0].y);
+				// every segment flies apart
+				debris = snake.map((s, i) => {
+					const a = Math.random() * Math.PI * 2;
+					const v = 120 + Math.random() * 260;
+					return {
+						x: cx(s.x),
+						y: cy(s.y),
+						vx: Math.cos(a) * v,
+						vy: Math.sin(a) * v - 120,
+						life: 0.6 + Math.random() * 0.4,
+						c: i === 0 ? ink : segColour(i, snake.length),
+					};
+				});
+				snake = [];
+				playdeck.sfx("boom");
+				playdeck.burst(hx, hy, "#ff4d6d", 30);
+				playdeck.shake(3);
+				playdeck.flash("#ff4d6d");
+				endTimer = setTimeout(() => {
+					state = "idle";
+					cancelAnimationFrame(raf);
+					playdeck.end(false, score, `Crashed at ${eaten}/${goal}`);
+				}, 800);
+			}
+
+			function win() {
+				state = "won";
+				const hx = cx(snake[0].x),
+					hy = cy(snake[0].y);
+				playdeck.flash("#3dffa0");
+				playdeck.sfx("good");
+				playdeck.burst(hx, hy, "#3dffa0", 40);
+				playdeck.pop(W / 2, H / 2, "CLEARED!", "#3dffa0");
+				endTimer = setTimeout(() => {
+					state = "idle";
+					cancelAnimationFrame(raf);
+					playdeck.end(
+						true,
+						score + playdeck.level * 5,
+						`Length ${snake.length}`,
+					);
+				}, 600);
+			}
+
+			function segColour(i, n) {
+				const t = i / n;
+				return `rgba(${(18 + 40 * t) | 0},183,${(106 + 80 * (1 - t)) | 0},${1 - t * 0.5})`;
+			}
+
+			function draw(now) {
+				ctx.clearRect(0, 0, W, H);
+				// faint board outline — walls are fatal, so show them
+				ctx.strokeStyle = line;
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.roundRect(ox - 3, oy - 3, cols * cell + 6, rows * cell + 6, 10);
+				ctx.stroke();
+
+				if (state !== "idle" && food) {
+					const pulse = 1 + Math.sin(now / 160) * 0.12;
+					ctx.save();
+					ctx.shadowColor = ORB;
+					ctx.shadowBlur = 18;
+					ctx.fillStyle = ORB;
+					ctx.beginPath();
+					ctx.arc(cx(food.x), cy(food.y), cell * 0.32 * pulse, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.restore();
+				}
+				if (gold) {
+					const left = gold.until - now;
+					// blink for the last 1.5s so the player knows it's leaving
+					if (left > 1500 || Math.floor(now / 120) % 2 === 0) {
+						ctx.save();
+						ctx.shadowColor = GOLD;
+						ctx.shadowBlur = 26;
+						ctx.fillStyle = GOLD;
+						ctx.beginPath();
+						const r = cell * (0.4 + Math.sin(now / 90) * 0.06);
+						ctx.arc(cx(gold.x), cy(gold.y), r, 0, Math.PI * 2);
+						ctx.fill();
+						ctx.restore();
+					}
+				}
+
+				snake.forEach((s, i) => {
+					ctx.fillStyle = i === 0 ? ink : segColour(i, snake.length);
+					ctx.beginPath();
+					ctx.roundRect(
+						ox + s.x * cell + 1.5,
+						oy + s.y * cell + 1.5,
+						cell - 3,
+						cell - 3,
+						i === 0 ? 7 : 5,
+					);
+					ctx.fill();
+				});
+
+				for (const d of debris) {
+					if (d.life <= 0) continue;
+					ctx.globalAlpha = Math.min(d.life * 1.5, 1);
+					ctx.fillStyle = d.c;
+					ctx.beginPath();
+					ctx.roundRect(
+						d.x - cell / 2 + 2,
+						d.y - cell / 2 + 2,
+						cell - 4,
+						cell - 4,
+						4,
+					);
+					ctx.fill();
+				}
+				ctx.globalAlpha = 1;
+			}
+
+			function turn(nx, ny) {
+				if (state !== "run" || !playdeck.running) return;
+				// compare against the last queued direction so quick double-swipes work
+				const ref = queue.length ? queue[queue.length - 1] : dir;
+				if ((nx === -ref.x && ny === -ref.y) || (nx === ref.x && ny === ref.y))
+					return;
+				if (queue.length < 2) queue.push({ x: nx, y: ny });
+			}
+
+			// swipe steering: turn as soon as the finger has travelled far enough,
+			// then re-anchor so one continuous drag can make several turns
+			let swipe = null;
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running) return;
+				swipe = { x: e.clientX, y: e.clientY };
+				canvas.setPointerCapture(e.pointerId);
+			});
+			canvas.addEventListener("pointermove", (e) => {
+				if (!swipe) return;
+				const dx = e.clientX - swipe.x,
+					dy = e.clientY - swipe.y;
+				if (Math.abs(dx) < 22 && Math.abs(dy) < 22) return;
+				if (Math.abs(dx) > Math.abs(dy)) turn(Math.sign(dx), 0);
+				else turn(0, Math.sign(dy));
+				swipe = { x: e.clientX, y: e.clientY };
+			});
+			const endSwipe = () => (swipe = null);
+			canvas.addEventListener("pointerup", endSwipe);
+			canvas.addEventListener("pointercancel", endSwipe);
+
+			const KEYS = {
+				ArrowUp: [0, -1],
+				w: [0, -1],
+				ArrowDown: [0, 1],
+				s: [0, 1],
+				ArrowLeft: [-1, 0],
+				a: [-1, 0],
+				ArrowRight: [1, 0],
+				d: [1, 0],
+			};
+			addEventListener("keydown", (e) => {
+				const k = KEYS[e.key] || KEYS[e.key.toLowerCase()];
+				if (!k) return;
+				e.preventDefault();
+				turn(k[0], k[1]);
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,522 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Neon Slice" />
+		<meta name="playdeck:emoji" content="🔪" />
+		<meta
+			name="playdeck:desc"
+			content="Swipe through glowing shapes. Never touch the bombs."
+		/>
+		<meta name="playdeck:order" content="8" />
+		<meta name="playdeck:accent" content="#ff5cd0" />
+		<meta
+			name="playdeck:instructions"
+			content="Swipe to slice the neon shapes as they fly. Slice several in one swipe for a combo. Don't let shapes drop (3 lives) and never slice a red bomb."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#ff5cd0",
+				BOMB = "#ff3b3b";
+			const COLORS = [
+				"#ff5cd0",
+				"#00e5ff",
+				"#ffd24d",
+				"#3dffa0",
+				"#7c5cff",
+				"#ff8a3d",
+			];
+			const TRAIL_LIFE = 0.18; // seconds a blade point stays visible
+			const COMBO_GAP = 0.3; // a pause this long inside a swipe closes the combo
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				G = 1200; // gravity, scaled to screen height so arcs feel the same everywhere
+			let state = "idle",
+				raf = 0,
+				endTimer = 0,
+				t = 0;
+			// Run parameters (set from level in onStart)
+			let tossEvery = 1,
+				bombShare = 0.12,
+				quota = 18;
+			// Run state
+			let sliced = 0,
+				score = 0,
+				lives = 3,
+				tossCD = 0,
+				bestCombo = 0;
+			let items = [],
+				halves = [],
+				trail = [];
+			// The current swipe: whether the pointer is down, last point, combo bookkeeping.
+			let blade = {
+				down: false,
+				id: -1,
+				x: 0,
+				y: 0,
+				combo: 0,
+				cx: 0,
+				cy: 0,
+				lastHit: 0,
+			};
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				G = Math.max(H, 400) * 1.5;
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`🔪 ${sliced}/${quota}`,
+						"❤".repeat(lives) + "♡".repeat(3 - lives),
+						`✦ ${score}`,
+					],
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				tossEvery = Math.max(1.05 - (L - 1) * 0.07, 0.5);
+				bombShare = Math.min(0.12 + (L - 1) * 0.03, 0.3);
+				quota = Math.min(17 + L * 3, 40);
+				sliced = score = bestCombo = 0;
+				lives = 3;
+				tossCD = 0.4;
+				t = 0;
+				items = [];
+				halves = [];
+				trail = [];
+				blade = {
+					down: false,
+					id: -1,
+					x: 0,
+					y: 0,
+					combo: 0,
+					cx: 0,
+					cy: 0,
+					lastHit: 0,
+				};
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			// ---- Tossing: launch from below the screen with a velocity that peaks
+			// inside the play area (clear of the top/bottom 90px bands).
+			function toss() {
+				const n = Math.random() < 0.45 ? 1 : Math.random() < 0.7 ? 2 : 3;
+				const bombs = Math.random() < bombShare ? 1 : 0;
+				for (let i = 0; i < n + bombs; i++) launch(i >= n);
+			}
+
+			function launch(isBomb) {
+				const r = isBomb ? 22 : 24 + Math.random() * 10;
+				const x = W * (0.15 + Math.random() * 0.7);
+				const apex = 130 + Math.random() * Math.max(H * 0.35 - 130, 40);
+				const y = H + r + 10;
+				const vy = -Math.sqrt(2 * G * (y - apex));
+				const flight = (2 * -vy) / G;
+				// Aim to land somewhere on screen so the arc crosses the middle.
+				const landX = W * (0.15 + Math.random() * 0.7);
+				const vx = (landX - x) / flight;
+				items.push({
+					x,
+					y,
+					vx,
+					vy,
+					r,
+					bomb: isBomb,
+					sides: isBomb ? 0 : [0, 3, 4, 5, 6][(Math.random() * 5) | 0],
+					c: isBomb ? BOMB : COLORS[(Math.random() * COLORS.length) | 0],
+					rot: Math.random() * 6,
+					spin: (Math.random() - 0.5) * 4,
+					delay: Math.random() * 0.25, // stagger a group so it fans out
+					dead: false,
+				});
+			}
+
+			// ---- Input: every pointer move while pressed is a blade segment.
+			function onPointerDown(e) {
+				if (state !== "run" || !playdeck.running) return;
+				canvas.setPointerCapture(e.pointerId);
+				closeCombo();
+				blade.down = true;
+				blade.id = e.pointerId;
+				blade.x = e.clientX;
+				blade.y = e.clientY;
+				trail.push({ x: blade.x, y: blade.y, t, brk: true });
+			}
+			function onPointerMove(e) {
+				if (!blade.down || e.pointerId !== blade.id) return;
+				if (state !== "run" || !playdeck.running) return;
+				const x = e.clientX,
+					y = e.clientY;
+				trail.push({ x, y, t, brk: false });
+				cut(blade.x, blade.y, x, y);
+				blade.x = x;
+				blade.y = y;
+			}
+			function onPointerUp(e) {
+				if (e.pointerId !== blade.id) return;
+				blade.down = false;
+				closeCombo();
+			}
+			canvas.addEventListener("pointerdown", onPointerDown);
+			canvas.addEventListener("pointermove", onPointerMove);
+			canvas.addEventListener("pointerup", onPointerUp);
+			canvas.addEventListener("pointercancel", onPointerUp);
+
+			// Distance² from point (px,py) to segment (ax,ay)-(bx,by).
+			function segDist2(ax, ay, bx, by, px, py) {
+				const dx = bx - ax,
+					dy = by - ay;
+				const len2 = dx * dx + dy * dy;
+				let u = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+				u = Math.max(0, Math.min(1, u));
+				const qx = ax + dx * u - px,
+					qy = ay + dy * u - py;
+				return qx * qx + qy * qy;
+			}
+
+			function cut(ax, ay, bx, by) {
+				const dx = bx - ax,
+					dy = by - ay;
+				if (dx * dx + dy * dy < 9) return; // a resting finger shouldn't slice
+				const angle = Math.atan2(dy, dx);
+				for (const it of items) {
+					if (it.dead || it.delay > 0) continue;
+					// Bombs get a slightly smaller hitbox — grazes are forgiven.
+					const rr = it.bomb ? it.r * 0.8 : it.r + 4;
+					if (segDist2(ax, ay, bx, by, it.x, it.y) > rr * rr) continue;
+					it.dead = true;
+					if (it.bomb) return explode(it);
+					slice(it, angle);
+					if (state !== "run") return;
+				}
+			}
+
+			function slice(it, angle) {
+				sliced += 1;
+				score += 10;
+				blade.combo += 1;
+				blade.cx = it.x;
+				blade.cy = it.y;
+				blade.lastHit = t;
+				playdeck.sfx("hit");
+				playdeck.burst(it.x, it.y, it.c, 10);
+				playdeck.pop(it.x, it.y - it.r - 6, "+10", it.c);
+				// Two halves fly apart perpendicular to the cut and tumble away.
+				const nx = -Math.sin(angle),
+					ny = Math.cos(angle);
+				for (const side of [1, -1]) {
+					halves.push({
+						x: it.x,
+						y: it.y,
+						vx: it.vx * 0.5 + nx * side * 110,
+						vy: Math.min(it.vy, 0) * 0.3 + ny * side * 110 - 60,
+						r: it.r,
+						sides: it.sides,
+						c: it.c,
+						rot: it.rot,
+						cut: angle,
+						side,
+						spin: side * (2 + Math.random() * 2),
+						spinA: 0,
+						life: 1.4,
+					});
+				}
+				hud();
+				if (sliced >= quota) win();
+			}
+
+			// A combo is however many shapes one swipe sliced without a long pause.
+			function closeCombo() {
+				const n = blade.combo;
+				blade.combo = 0;
+				if (n < 2 || state !== "run") return;
+				const bonus = n * 10;
+				score += bonus;
+				bestCombo = Math.max(bestCombo, n);
+				playdeck.sfx("merge", 2 ** Math.min(n + 2, 11));
+				playdeck.burst(blade.cx, blade.cy, ACCENT, 16 + n * 8);
+				playdeck.pop(
+					blade.cx,
+					blade.cy - 40,
+					`${n}× COMBO +${bonus}`,
+					"#ffd24d",
+				);
+				if (n >= 3) playdeck.shake(1);
+				hud();
+			}
+
+			function explode(it) {
+				state = "over";
+				blade.down = false;
+				playdeck.sfx("boom");
+				playdeck.shake(3);
+				playdeck.flash(BOMB);
+				playdeck.burst(it.x, it.y, BOMB, 40);
+				playdeck.burst(it.x, it.y, "#ffd24d", 20);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Bomb! ${sliced}/${quota} sliced`);
+				}, 650);
+			}
+
+			function win() {
+				closeCombo();
+				state = "over";
+				blade.down = false;
+				const bonus = lives * 20;
+				score += bonus;
+				playdeck.sfx("good");
+				playdeck.flash(ACCENT);
+				playdeck.pop(W / 2, H * 0.4, "QUOTA SLICED!", ACCENT);
+				hud();
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						bestCombo >= 2 ? `Best combo ×${bestCombo}` : `${lives} ❤ left`,
+					);
+				}, 700);
+			}
+
+			function step(dt) {
+				t += dt;
+				trail = trail.filter((p) => t - p.t < TRAIL_LIFE);
+				for (const h of halves) {
+					h.vy += G * dt;
+					h.x += h.vx * dt;
+					h.y += h.vy * dt;
+					h.spinA += h.spin * dt;
+					h.life -= dt;
+				}
+				halves = halves.filter((h) => h.life > 0 && h.y < H + 80);
+				if (state !== "run") return;
+
+				if (blade.combo && t - blade.lastHit > COMBO_GAP) closeCombo();
+
+				tossCD -= dt;
+				if (tossCD <= 0) {
+					tossCD = tossEvery * (0.8 + Math.random() * 0.4);
+					toss();
+				}
+
+				for (const it of items) {
+					if (it.dead) continue;
+					if (it.delay > 0) {
+						it.delay -= dt;
+						continue;
+					}
+					it.vy += G * dt;
+					it.x += it.vx * dt;
+					it.y += it.vy * dt;
+					it.rot += it.spin * dt;
+					// Fell back off the bottom unsliced
+					if (it.vy > 0 && it.y > H + it.r + 10) {
+						it.dead = true;
+						if (!it.bomb) miss(it);
+						if (state !== "run") return;
+					}
+				}
+				items = items.filter((it) => !it.dead);
+			}
+
+			function miss(it) {
+				lives -= 1;
+				playdeck.sfx("bad");
+				const x = Math.min(Math.max(it.x, 40), W - 40);
+				playdeck.pop(x, H - 110, "MISS", BOMB);
+				hud();
+				if (lives <= 0) {
+					state = "over";
+					blade.down = false;
+					playdeck.shake(2);
+					endTimer = setTimeout(() => {
+						state = "idle";
+						playdeck.end(false, score, `Dropped 3 — ${sliced}/${quota} sliced`);
+					}, 500);
+				}
+			}
+
+			// ---- Drawing
+			function shapePath(r, sides) {
+				ctx.beginPath();
+				if (!sides) {
+					ctx.arc(0, 0, r, 0, Math.PI * 2);
+					return;
+				}
+				for (let i = 0; i < sides; i++) {
+					const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+					if (i) ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+					else ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+				}
+				ctx.closePath();
+			}
+
+			// A neon shape: tinted fill, glowing outline, bright inner ring.
+			function drawShape(r, sides, c, alpha = 1) {
+				ctx.shadowColor = c;
+				ctx.shadowBlur = 18;
+				shapePath(r, sides);
+				ctx.globalAlpha = 0.28 * alpha;
+				ctx.fillStyle = c;
+				ctx.fill();
+				ctx.globalAlpha = alpha;
+				ctx.strokeStyle = c;
+				ctx.lineWidth = 3;
+				ctx.stroke();
+				ctx.shadowBlur = 0;
+				shapePath(r * 0.45, sides);
+				ctx.globalAlpha = 0.7 * alpha;
+				ctx.lineWidth = 2;
+				ctx.stroke();
+				ctx.globalAlpha = 1;
+			}
+
+			function drawBomb(it) {
+				ctx.save();
+				ctx.translate(it.x, it.y);
+				ctx.rotate(it.rot);
+				ctx.shadowColor = BOMB;
+				ctx.shadowBlur = 18;
+				// spiky star outline
+				const spikes = 10;
+				ctx.beginPath();
+				for (let i = 0; i < spikes * 2; i++) {
+					const a = (i / (spikes * 2)) * Math.PI * 2;
+					const rr = i % 2 ? it.r * 0.72 : it.r * 1.15;
+					if (i) ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+					else ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+				}
+				ctx.closePath();
+				ctx.fillStyle = "#3a0710";
+				ctx.fill();
+				ctx.strokeStyle = BOMB;
+				ctx.lineWidth = 3;
+				ctx.stroke();
+				ctx.restore();
+				// pulsing core + a "✕" so it can't be mistaken for a shape
+				const pulse = 0.6 + Math.sin(t * 14) * 0.4;
+				ctx.fillStyle = BOMB;
+				ctx.globalAlpha = pulse;
+				ctx.beginPath();
+				ctx.arc(it.x, it.y, it.r * 0.38, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.globalAlpha = 1;
+				ctx.strokeStyle = "#ffffff";
+				ctx.lineWidth = 2.5;
+				const k = it.r * 0.22;
+				ctx.beginPath();
+				ctx.moveTo(it.x - k, it.y - k);
+				ctx.lineTo(it.x + k, it.y + k);
+				ctx.moveTo(it.x + k, it.y - k);
+				ctx.lineTo(it.x - k, it.y + k);
+				ctx.stroke();
+				ctx.shadowBlur = 0;
+			}
+
+			function drawHalf(h) {
+				ctx.save();
+				ctx.translate(h.x, h.y);
+				// Clip to one side of the cut line, then draw the whole shape.
+				ctx.rotate(h.cut + h.spinA);
+				ctx.beginPath();
+				ctx.rect(-h.r * 2, h.side > 0 ? 0 : -h.r * 2, h.r * 4, h.r * 2);
+				ctx.clip();
+				ctx.rotate(h.rot - h.cut);
+				drawShape(h.r, h.sides, h.c, Math.min(1, h.life * 1.5));
+				ctx.restore();
+			}
+
+			function drawTrail() {
+				if (trail.length < 2) return;
+				ctx.lineCap = "round";
+				ctx.lineJoin = "round";
+				for (let i = 1; i < trail.length; i++) {
+					const p = trail[i],
+						q = trail[i - 1];
+					if (p.brk) continue; // start of a new swipe
+					const k = 1 - (t - p.t) / TRAIL_LIFE;
+					if (k <= 0) continue;
+					// outer glow, then a hot white core that tapers as it fades
+					ctx.shadowColor = ACCENT;
+					ctx.shadowBlur = 16;
+					ctx.strokeStyle = ACCENT;
+					ctx.globalAlpha = k * 0.8;
+					ctx.lineWidth = 2 + k * 10;
+					ctx.beginPath();
+					ctx.moveTo(q.x, q.y);
+					ctx.lineTo(p.x, p.y);
+					ctx.stroke();
+					ctx.shadowBlur = 0;
+					ctx.strokeStyle = "#ffffff";
+					ctx.globalAlpha = k;
+					ctx.lineWidth = 1 + k * 4;
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				for (const h of halves) drawHalf(h);
+				for (const it of items) {
+					if (it.dead || it.delay > 0) continue;
+					if (it.bomb) {
+						drawBomb(it);
+						continue;
+					}
+					ctx.save();
+					ctx.translate(it.x, it.y);
+					ctx.rotate(it.rot);
+					drawShape(it.r, it.sides, it.c);
+					ctx.restore();
+				}
+				drawTrail();
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>

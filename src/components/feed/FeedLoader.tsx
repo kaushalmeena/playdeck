@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import { SITE } from "../../lib/seo";
 import { Logo } from "../Logo";
 
@@ -45,7 +46,7 @@ export function FeedLoader() {
 
 	return (
 		<div
-			className="flex h-full w-full flex-col items-center justify-center gap-5"
+			className="flex size-full flex-col items-center justify-center gap-5"
 			style={{
 				background:
 					"radial-gradient(120% 80% at 50% -10%, var(--t-stage) 0%, var(--t-bg) 60%)",

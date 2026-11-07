@@ -1,0 +1,333 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Bubble Pop" />
+		<meta name="playdeck:emoji" content="🫧" />
+		<meta
+			name="playdeck:desc"
+			content="Pop the bubbles. Chain them. Leave the bombs alone."
+		/>
+		<meta name="playdeck:order" content="4" />
+		<meta name="playdeck:accent" content="#4d9fff" />
+		<meta
+			name="playdeck:instructions"
+			content="Pop the quota of bubbles before time runs out. Bubbles packed close together pop in a chain, and golden ones count triple. From level 3, bombs float up too — never pop those."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: none;
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			#field {
+				position: absolute;
+				inset: 0;
+				overflow: hidden;
+			}
+			.bubble {
+				position: absolute;
+				bottom: -100px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 50%;
+				border: 2px solid
+					color-mix(in srgb, var(--t-accent2, #00e5ff) 60%, transparent);
+				background: radial-gradient(
+					circle at 32% 30%,
+					color-mix(in srgb, #ffffff 35%, transparent) 0 14%,
+					color-mix(in srgb, var(--t-accent2, #00e5ff) 12%, transparent) 15%
+				);
+				cursor: pointer;
+				animation-name: bubble-rise;
+				animation-timing-function: linear;
+				animation-fill-mode: forwards;
+			}
+			.bubble.gold {
+				border-color: #ffd24d;
+				background: radial-gradient(
+					circle at 32% 30%,
+					rgba(255, 255, 255, 0.55) 0 14%,
+					rgba(255, 210, 77, 0.28) 15%
+				);
+				box-shadow: 0 0 22px rgba(255, 210, 77, 0.65);
+			}
+			.bubble.bomb {
+				border-color: color-mix(
+					in srgb,
+					var(--t-danger, #ff4d6d) 70%,
+					transparent
+				);
+				background: color-mix(
+					in srgb,
+					var(--t-danger, #ff4d6d) 15%,
+					transparent
+				);
+			}
+			/* a popped bubble swells and fades instead of just vanishing */
+			.bubble.popped {
+				pointer-events: none;
+				transition:
+					opacity 0.16s ease-out,
+					scale 0.16s ease-out;
+				opacity: 0;
+				scale: 1.5;
+			}
+
+			/* ported from the app stylesheet: rise from below the stage to above it */
+			@keyframes bubble-rise {
+				from {
+					transform: translateY(0);
+				}
+				to {
+					transform: translateY(calc(-100vh - 140px));
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="field"></div>
+		<script>
+			const field = document.getElementById("field");
+			const DURATION = 20;
+			const GOLD = "#ffd24d",
+				BUBBLE = "#00e5ff",
+				BOMB = "#ff4d6d";
+
+			let state = "idle",
+				raf = 0,
+				endTimer = 0;
+			let level = 1,
+				goal = 0,
+				pops = 0,
+				score = 0,
+				bestChain = 0;
+			let elapsed = 0,
+				spawnT = 0,
+				spawnEvery = 0.7,
+				hudT = 0;
+			let bubbles = [];
+
+			const center = (b) => {
+				const r = b.el.getBoundingClientRect();
+				return {
+					x: r.left + r.width / 2,
+					y: r.top + r.height / 2,
+					r: r.width / 2,
+				};
+			};
+
+			function hud() {
+				const left = Math.max(DURATION - elapsed, 0);
+				playdeck.hud({
+					chips: [`🫧 ${Math.min(pops, goal)}/${goal}`, `${Math.ceil(left)}s`],
+					progress: left / DURATION,
+				});
+			}
+
+			function clearField() {
+				for (const b of bubbles) b.el.remove();
+				bubbles = [];
+			}
+
+			playdeck.onStart(({ level: lv }) => {
+				level = Math.min(Math.max(lv, 1), 12);
+				goal = Math.min(16 + level * 2, 34);
+				pops = score = bestChain = 0;
+				elapsed = hudT = 0;
+				spawnEvery = Math.max(0.75 - level * 0.03, 0.38);
+				spawnT = spawnEvery; // first bubble right away
+				clearTimeout(endTimer);
+				clearField();
+				state = "run";
+				hud();
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				clearField();
+			});
+
+			function spawn() {
+				if (bubbles.length > 14) return;
+				const size = 52 + Math.random() * 34;
+				const roll = Math.random();
+				const bomb = level >= 3 && roll < Math.min(0.14 + level * 0.02, 0.26);
+				const gold = !bomb && Math.random() < 0.1;
+				// occasionally release a tight cluster so chains happen often
+				const cluster =
+					!bomb && Math.random() < 0.25 ? 2 + ((Math.random() * 2) | 0) : 1;
+				const dur = Math.max(4.6 - level * 0.18, 2.4) + Math.random();
+				const x = 6 + Math.random() * 80;
+				for (let i = 0; i < cluster; i++) {
+					const s = i === 0 ? size : 48 + Math.random() * 20;
+					makeBubble({
+						x: Math.min(
+							Math.max(x + (i ? (Math.random() - 0.5) * 14 : 0), 2),
+							90,
+						),
+						size: s,
+						dur,
+						delay: i * 0.1,
+						kind: bomb ? "bomb" : gold && i === 0 ? "gold" : "normal",
+					});
+				}
+			}
+
+			function makeBubble({ x, size, dur, delay, kind }) {
+				const el = document.createElement("div");
+				el.className = `bubble ${kind === "normal" ? "" : kind}`;
+				el.style.left = `${x}%`;
+				el.style.width = el.style.height = `${size}px`;
+				el.style.fontSize = `${size * 0.5}px`;
+				el.style.animationDuration = `${dur}s`;
+				el.style.animationDelay = `${delay}s`;
+				el.textContent = kind === "bomb" ? "💣" : kind === "gold" ? "⭐" : "🫧";
+				const b = { el, kind, dead: false };
+				el.addEventListener("pointerdown", (e) => {
+					e.stopPropagation();
+					tap(b, e.clientX, e.clientY);
+				});
+				el.addEventListener("animationend", () => remove(b));
+				field.appendChild(el);
+				bubbles.push(b);
+			}
+
+			function remove(b) {
+				b.dead = true;
+				b.el.remove();
+				bubbles = bubbles.filter((o) => o !== b);
+			}
+
+			function popOne(b, depth) {
+				if (b.dead) return;
+				b.dead = true;
+				const c = center(b);
+				const worth = b.kind === "gold" ? 3 : 1;
+				pops += worth;
+				// chained bubbles are worth more the deeper the chain goes
+				const pts = worth * 8 + depth * 4;
+				score += pts;
+				b.el.classList.add("popped");
+				setTimeout(() => b.el.remove(), 180);
+				bubbles = bubbles.filter((o) => o !== b);
+
+				const color = b.kind === "gold" ? GOLD : BUBBLE;
+				playdeck.burst(c.x, c.y, color, b.kind === "gold" ? 18 : 10);
+				if (b.kind === "gold") {
+					playdeck.sfx("collect");
+					playdeck.pop(c.x, c.y - 24, `GOLD +${pts}`, GOLD);
+				} else if (depth > 0) {
+					playdeck.sfx("merge", 2 ** Math.min(depth + 1, 10));
+					playdeck.pop(c.x, c.y - 20, `CHAIN ×${depth + 1}`, BUBBLE);
+				} else {
+					playdeck.sfx("pop");
+					playdeck.pop(c.x, c.y - 20, `+${pts}`, color);
+				}
+				return c;
+			}
+
+			// Pop a bubble, then ripple out to any bubble packed against it.
+			function chainFrom(b, depth) {
+				if (state !== "run") return;
+				const c = popOne(b, depth);
+				if (!c) return;
+				bestChain = Math.max(bestChain, depth + 1);
+				for (const o of bubbles) {
+					if (o.dead || o.kind === "bomb" || o.chainQueued) continue;
+					const oc = center(o);
+					const gap = Math.hypot(oc.x - c.x, oc.y - c.y) - c.r - oc.r;
+					if (gap < 14) {
+						o.chainQueued = true;
+						setTimeout(() => chainFrom(o, depth + 1), 90);
+					}
+				}
+				checkWin();
+			}
+
+			function tap(b, x, y) {
+				if (!playdeck.running || state !== "run" || b.dead) return;
+				if (b.kind === "bomb") return explode(b);
+				chainFrom(b, 0);
+			}
+
+			function explode(b) {
+				state = "dying";
+				const c = center(b);
+				b.el.classList.add("popped");
+				playdeck.sfx("boom");
+				playdeck.shake(3);
+				playdeck.flash(BOMB);
+				playdeck.burst(c.x, c.y, BOMB, 34);
+				playdeck.pop(c.x, c.y - 30, "BOOM", BOMB);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Boom at ${pops}/${goal}`);
+				}, 550);
+			}
+
+			function checkWin() {
+				if (state !== "run" || pops < goal) return;
+				state = "won";
+				hud();
+				const left = Math.max(DURATION - elapsed, 0);
+				const bonus = Math.ceil(left) * 3;
+				score += 40 + bonus;
+				playdeck.flash(BUBBLE);
+				playdeck.sfx("good");
+				playdeck.pop(innerWidth / 2, innerHeight / 2, "CLEARED!", GOLD);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						bestChain > 2
+							? `Cleared · chain ×${bestChain}`
+							: `Cleared with ${Math.ceil(left)}s left`,
+					);
+				}, 350);
+			}
+
+			function step(dt) {
+				if (state !== "run") return;
+				elapsed += dt;
+				spawnT += dt;
+				if (spawnT >= spawnEvery) {
+					spawnT = 0;
+					spawn();
+				}
+				hudT += dt;
+				if (hudT > 0.25) {
+					hudT = 0;
+					hud();
+				}
+				if (elapsed >= DURATION) {
+					state = "dying";
+					hud();
+					playdeck.sfx("bad");
+					playdeck.shake(1);
+					endTimer = setTimeout(() => {
+						state = "idle";
+						playdeck.end(false, score, `Time's up at ${pops}/${goal}`);
+					}, 450);
+				}
+			}
+		</script>
+	</body>
+</html>

@@ -3,6 +3,8 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import { htmlGame } from "./plugins/html-game.ts";
+
 /**
  * GitHub Pages serves a project site from /<repo>/, so the deploy workflow
  * builds with BASE_PATH set. Locally it stays "/" and nothing changes.
@@ -16,6 +18,7 @@ const config = defineConfig({
 	base,
 	resolve: { tsconfigPaths: true },
 	plugins: [
+		htmlGame(),
 		tailwindcss(),
 		tanstackStart({
 			router: { basepath },

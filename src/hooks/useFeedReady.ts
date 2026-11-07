@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import type { GameEntry } from "../games/registry";
 
 /** the splash stays up at least this long, so it reads as a screen, not a blink */

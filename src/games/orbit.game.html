@@ -1,0 +1,399 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Orbit Dash" />
+		<meta name="playdeck:emoji" content="🪐" />
+		<meta
+			name="playdeck:desc"
+			content="Circle the ring. Tap to reverse. Dodge the red arcs, grab the gems."
+		/>
+		<meta name="playdeck:order" content="27" />
+		<meta name="playdeck:accent" content="#b06bff" />
+		<meta
+			name="playdeck:instructions"
+			content="Your comet orbits the ring — tap anywhere (or Space) to reverse direction and dodge the red danger arcs. New arcs flicker in before they turn deadly. Grab gems for bonus points and survive 15 seconds."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: none;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const TAU = Math.PI * 2;
+			const DURATION = 15,
+				ARM_TIME = 0.6, // seconds an arc flickers harmlessly before it's live
+				GEM_HIT = 0.14, // rad
+				PURPLE = "#b06bff",
+				RED = "#ff4d6d",
+				GOLD = "#ffd24d",
+				CYAN = "#00e5ff";
+			/** wrap an angle into [0, 2π) */
+			const norm = (a) => ((a % TAU) + TAU) % TAU;
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				cx = 0,
+				cy = 0,
+				R = 0;
+			let state = "idle",
+				raf = 0,
+				endTimer = 0;
+			let level = 1,
+				angSpeed = 0,
+				arcEvery = 0,
+				maxArcs = 0;
+			let angle = 0,
+				dir = 1,
+				elapsed = 0,
+				sinceArc = 0,
+				sinceGem = 0,
+				hudT = 0;
+			let arcs = [], // { start, span, age, dying }
+				gems = [], // { a, age }
+				trail = [];
+			let score = 0,
+				gemCount = 0,
+				gemStreak = 0,
+				ink = "#eaeaf2";
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				cx = W / 2;
+				cy = H / 2;
+				// ring stays clear of the top/bottom 90px bands
+				R = Math.min(W * 0.36, (H - 220) / 2, 200);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			const cometPos = () => ({
+				x: cx + Math.cos(angle) * R,
+				y: cy + Math.sin(angle) * R,
+			});
+
+			function hud() {
+				const left = Math.max(DURATION - elapsed, 0);
+				playdeck.hud({
+					chips: [`${Math.ceil(left)}s LEFT`, `💎 ${gemCount}`],
+					progress: left / DURATION,
+				});
+			}
+
+			playdeck.onStart(({ level: lv }) => {
+				level = Math.min(Math.max(lv, 1), 10);
+				ink =
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--t-text")
+						.trim() || "#eaeaf2";
+				angSpeed = (1.4 + level * 0.12) * Math.PI;
+				arcEvery = Math.max(1.4 - level * 0.08, 0.75);
+				maxArcs = 3 + Math.min(level, 3);
+				angle = -Math.PI / 2;
+				dir = 1;
+				elapsed = sinceArc = sinceGem = hudT = 0;
+				arcs = [];
+				gems = [];
+				trail = [];
+				score = gemCount = gemStreak = 0;
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			// Size of the free stretch of ring the comet sits in, given a set of arcs.
+			function freeGap(list) {
+				let ahead = TAU,
+					behind = TAU;
+				for (const a of list) {
+					ahead = Math.min(ahead, norm(a.start - angle));
+					behind = Math.min(behind, norm(angle - (a.start + a.span)));
+				}
+				return Math.min(ahead + behind, TAU);
+			}
+			const overlaps = (a, b, pad) =>
+				norm(a.start - b.start) < b.span + pad ||
+				norm(b.start - a.start) < a.span + pad;
+
+			// Place a new arc ahead of the comet, but never one that boxes it into a
+			// gap too tight to survive or lands right on top of it.
+			function spawnArc() {
+				const live = arcs.filter((a) => !a.dying);
+				for (let tries = 0; tries < 10; tries++) {
+					const span = 0.45 + Math.random() * 0.45;
+					const start =
+						angle + dir * (Math.PI / 2) * (1 + Math.random() * 2) - span / 2;
+					const cand = { start: norm(start), span, age: 0, dying: 0 };
+					if (live.some((a) => overlaps(a, cand, 0.35))) continue;
+					const self = { start: norm(angle - 0.5), span: 1 };
+					if (overlaps(self, cand, 0)) continue;
+					if (freeGap([...live, cand]) < Math.PI * 0.8) continue;
+					arcs.push(cand);
+					// a gem swallowed by the new arc would only be bait — drop it
+					gems = gems.filter(
+						(g) => norm(g.a - cand.start + 0.2) >= cand.span + 0.4,
+					);
+					if (live.length + 1 > maxArcs) live[0].dying = 0.001; // oldest fades out
+					return;
+				}
+			}
+
+			function spawnGem() {
+				const live = arcs.filter((a) => !a.dying);
+				for (let tries = 0; tries < 10; tries++) {
+					const a = norm(angle + dir * (0.8 + Math.random() * 4));
+					const inArc = live.some(
+						(arc) => norm(a - arc.start + 0.25) < arc.span + 0.5,
+					);
+					if (inArc) continue;
+					gems.push({ a, age: 0 });
+					return;
+				}
+			}
+
+			function reverse() {
+				if (!playdeck.running || state !== "run") return;
+				dir *= -1;
+				playdeck.sfx("step");
+				// reward a last-moment reverse right in front of a live arc
+				let nearest = TAU;
+				for (const a of arcs) {
+					if (a.dying || !a.live) continue;
+					const toward = -dir; // the way we were heading
+					const d =
+						toward > 0
+							? norm(a.start - angle)
+							: norm(angle - (a.start + a.span));
+					nearest = Math.min(nearest, d);
+				}
+				if (nearest < 0.35) {
+					score += 5;
+					const p = cometPos();
+					playdeck.pop(p.x, p.y - 22, "CLOSE! +5", CYAN);
+				}
+			}
+			canvas.addEventListener("pointerdown", reverse);
+			document.addEventListener("keydown", (e) => {
+				if (e.code !== "Space" && e.code !== "Enter") return;
+				e.preventDefault();
+				if (!e.repeat) reverse();
+			});
+
+			function step(dt) {
+				for (const a of arcs) {
+					a.age += dt;
+					if (a.dying) a.dying += dt;
+					// an arc only goes live once the comet is well clear of it (never under
+					// it or right in front of it)
+					if (!a.live && a.age >= ARM_TIME) {
+						if (norm(angle - a.start + 0.7) <= a.span + 1.4)
+							a.age = ARM_TIME - 0.05;
+						else a.live = true;
+					}
+				}
+				arcs = arcs.filter((a) => a.dying < 0.35);
+				if (state !== "run") return;
+
+				elapsed += dt;
+				angle = norm(angle + dir * angSpeed * dt);
+				const p = cometPos();
+				trail.push(p);
+				if (trail.length > 10) trail.shift();
+
+				sinceArc += dt;
+				if (sinceArc >= arcEvery) {
+					sinceArc = 0;
+					spawnArc();
+				}
+				sinceGem += dt;
+				if (sinceGem >= 1.1 && gems.length < 2) {
+					sinceGem = 0;
+					spawnGem();
+				}
+
+				// gems: collect on touch, fade after a while
+				for (const g of gems) {
+					g.age += dt;
+					const d = Math.min(norm(angle - g.a), norm(g.a - angle));
+					if (d < GEM_HIT && !g.got) {
+						g.got = true;
+						gemCount += 1;
+						gemStreak += 1;
+						const pts = 5 * Math.min(gemStreak, 4);
+						score += pts;
+						const gx = cx + Math.cos(g.a) * R,
+							gy = cy + Math.sin(g.a) * R;
+						playdeck.sfx("collect");
+						playdeck.burst(gx, gy, GOLD, 12);
+						playdeck.pop(
+							gx,
+							gy - 22,
+							gemStreak > 1 ? `+${pts} ×${gemStreak}` : `+${pts}`,
+							GOLD,
+						);
+						hud();
+					}
+				}
+				for (const g of gems) if (!g.got && g.age > 4.5) gemStreak = 0; // a missed gem breaks the streak
+				gems = gems.filter((g) => !g.got && g.age <= 4.5);
+
+				// collision with a live arc
+				for (const a of arcs) {
+					if (a.dying || !a.live) continue;
+					if (norm(angle - a.start) <= a.span) return crash(p);
+				}
+
+				hudT += dt;
+				if (hudT > 0.25) {
+					hudT = 0;
+					hud();
+				}
+				if (elapsed >= DURATION) win();
+			}
+
+			function crash(p) {
+				state = "dying";
+				playdeck.sfx("boom");
+				playdeck.shake(2);
+				playdeck.flash(RED);
+				playdeck.burst(p.x, p.y, RED, 30);
+				playdeck.pop(p.x, p.y - 26, "BURNED UP", RED);
+				const survived = Math.floor(elapsed);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						false,
+						survived * 8 + score,
+						`Burned up at ${survived}s`,
+					);
+				}, 600);
+			}
+
+			function win() {
+				state = "won";
+				elapsed = DURATION;
+				hud();
+				const p = cometPos();
+				playdeck.flash(PURPLE);
+				playdeck.sfx("good");
+				playdeck.burst(p.x, p.y, PURPLE, 30);
+				playdeck.pop(cx, cy, "SURVIVED!", PURPLE);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						DURATION * 8 + level * 12 + score,
+						gemCount ? `Survived · 💎×${gemCount}` : "Survived the ring",
+					);
+				}, 450);
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				ctx.lineCap = "round";
+				// the ring
+				ctx.strokeStyle = "rgba(176,107,255,0.35)";
+				ctx.lineWidth = 4;
+				ctx.beginPath();
+				ctx.arc(cx, cy, R, 0, TAU);
+				ctx.stroke();
+
+				// danger arcs: flicker while arming, solid and glowing when live
+				for (const a of arcs) {
+					const armed = a.live;
+					let alpha = armed
+						? 1
+						: 0.25 + 0.35 * (Math.sin(a.age * 30) > 0 ? 1 : 0);
+					if (a.dying) alpha *= 1 - a.dying / 0.35;
+					ctx.globalAlpha = alpha;
+					ctx.strokeStyle = RED;
+					ctx.shadowColor = RED;
+					ctx.shadowBlur = armed ? 14 : 0;
+					ctx.lineWidth = armed ? 11 : 7;
+					ctx.beginPath();
+					ctx.arc(cx, cy, R, a.start, a.start + a.span);
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+
+				// gems
+				ctx.shadowColor = GOLD;
+				ctx.shadowBlur = 12;
+				ctx.fillStyle = GOLD;
+				for (const g of gems) {
+					const gx = cx + Math.cos(g.a) * R,
+						gy = cy + Math.sin(g.a) * R;
+					const s = 8 + Math.sin(g.age * 8) * 1.5;
+					ctx.globalAlpha =
+						g.age > 3.5 ? 0.4 + 0.6 * (Math.sin(g.age * 25) > 0 ? 1 : 0) : 1;
+					ctx.beginPath();
+					ctx.moveTo(gx, gy - s);
+					ctx.lineTo(gx + s * 0.75, gy);
+					ctx.lineTo(gx, gy + s);
+					ctx.lineTo(gx - s * 0.75, gy);
+					ctx.fill();
+				}
+				ctx.globalAlpha = 1;
+
+				if (state === "run" || state === "won") {
+					// comet tail
+					ctx.shadowBlur = 0;
+					ctx.fillStyle = PURPLE;
+					trail.forEach((t, i) => {
+						const k = (i + 1) / trail.length;
+						ctx.globalAlpha = 0.35 * k;
+						ctx.beginPath();
+						ctx.arc(t.x, t.y, 11 * (0.3 + 0.6 * k), 0, TAU);
+						ctx.fill();
+					});
+					ctx.globalAlpha = 1;
+					const p = cometPos();
+					ctx.shadowColor = PURPLE;
+					ctx.shadowBlur = 20;
+					ctx.fillStyle = ink;
+					ctx.beginPath();
+					ctx.arc(p.x, p.y, 11, 0, TAU);
+					ctx.fill();
+				}
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>

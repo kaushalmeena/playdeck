@@ -1,23 +1,27 @@
-import clsx from "clsx";
-import { useMemo } from "react";
+import { clsx } from "clsx";
+import { useCallback, useMemo } from "react";
 import { Toaster } from "sonner";
+
 import type { GameEntry } from "../../games/registry";
 import { useFeedReady } from "../../hooks/useFeedReady";
 import { useInfiniteFeed } from "../../hooks/useInfiniteFeed";
 import { useRunRecorder } from "../../hooks/useRunRecorder";
 import { useShuffledGames } from "../../hooks/useShuffledGames";
+import { useSwipeHint } from "../../hooks/useSwipeHint";
 import { dailyGames, dateKey } from "../../lib/daily";
 import { listIndex } from "../../lib/feed/loop";
 import { selectList, type Tab } from "../../lib/feed/ordering";
 import { unlockedCount, unlockThreshold } from "../../lib/feed/progression";
 import { store, usePlayerState } from "../../lib/storage";
 import { useTheme } from "../../lib/theme";
+import { DailyBanner } from "./DailyBanner";
 import { EmptyState } from "./EmptyState";
 import { FeedHeader } from "./FeedHeader";
 import { FeedLoader } from "./FeedLoader";
 import { GameCard } from "./GameCard";
 import { NavArrows } from "./NavArrows";
 import { ShareDailyButton } from "./ShareDailyButton";
+import { SwipeHint } from "./SwipeHint";
 
 export function GameFeed({
 	games,
@@ -70,10 +74,14 @@ export function GameFeed({
 		frozen,
 	});
 
+	const { page } = feed;
+	const showHint = useSwipeHint(feed.index, frozen) && list.length > 1;
+	const handleNext = useCallback(() => page(1), [page]);
+
 	if (!ready) return <FeedLoader />;
 
 	return (
-		<div className="relative h-full w-full bg-bg">
+		<div className="relative size-full bg-bg">
 			<Toaster position="top-center" theme={theme} offset={60} />
 
 			<FeedHeader
@@ -92,7 +100,7 @@ export function GameFeed({
 				ref={feed.scrollerRef}
 				onScroll={feed.onScroll}
 				className={clsx(
-					"no-scrollbar h-full w-full snap-y snap-mandatory overscroll-contain",
+					"no-scrollbar size-full snap-y snap-mandatory overscroll-contain",
 					frozen ? "overflow-hidden" : "overflow-y-auto",
 				)}
 			>
@@ -119,6 +127,7 @@ export function GameFeed({
 										game={game}
 										mounted={Math.abs(card.index - feed.index) <= 1 && !locked}
 										active={card.index === feed.index}
+										playing={playingId === game.id}
 										locked={locked}
 										unlockAt={unlockThreshold(rank.get(game.id) ?? 0)}
 										level={player.levels[game.id] ?? 1}
@@ -128,6 +137,8 @@ export function GameFeed({
 										onToggleFavorite={() => store.toggleFavorite(game.id)}
 										onEnd={handlers.end}
 										onPlayingChange={handlers.playing}
+										onNext={handleNext}
+										total={player.total}
 									/>
 								</div>
 							);
@@ -137,6 +148,15 @@ export function GameFeed({
 			</div>
 
 			{list.length > 1 && !frozen && <NavArrows onPage={feed.page} />}
+
+			{showHint && <SwipeHint />}
+
+			{tab === "daily" && !frozen && (
+				<DailyBanner
+					done={dailyIds.filter((id) => dailyWon.includes(id)).length}
+					total={dailyIds.length}
+				/>
+			)}
 
 			{tab === "daily" && dailyComplete && !frozen && (
 				<ShareDailyButton

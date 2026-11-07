@@ -1,4 +1,6 @@
+import { clsx } from "clsx";
 import { memo, useEffect, useState } from "react";
+
 import type { GameEntry } from "../../games/registry";
 import { CardRail } from "./CardRail";
 import { CardPlaceholder, LockedCard } from "./CardStates";
@@ -9,6 +11,8 @@ export type GameCardProps = {
 	mounted: boolean;
 	/** this is the card currently filling the screen */
 	active: boolean;
+	/** a run is live on this card — the caption and rail step aside */
+	playing: boolean;
 	locked: boolean;
 	unlockAt: number;
 	level: number;
@@ -18,12 +22,17 @@ export type GameCardProps = {
 	onToggleFavorite: () => void;
 	onEnd: (won: boolean, score: number) => void;
 	onPlayingChange: (playing: boolean) => void;
+	/** page to the next card */
+	onNext: () => void;
+	/** the player's global score, for the locked card's unlock progress */
+	total: number;
 };
 
 function GameCardImpl({
 	game,
 	mounted,
 	active,
+	playing,
 	locked,
 	unlockAt,
 	level,
@@ -33,6 +42,8 @@ function GameCardImpl({
 	onToggleFavorite,
 	onEnd,
 	onPlayingChange,
+	onNext,
+	total,
 }: GameCardProps) {
 	// An already-downloaded game renders on the very first frame, so a card the
 	// feed preloaded never flashes its placeholder.
@@ -50,24 +61,28 @@ function GameCardImpl({
 	}, [mounted, game, Game]);
 
 	return (
-		<section
-			className="relative h-full w-full overflow-hidden"
-			data-game={game.id}
-		>
+		<section className="relative size-full overflow-hidden" data-game={game.id}>
 			{locked ? (
-				<LockedCard game={game} unlockAt={unlockAt} />
+				<LockedCard game={game} unlockAt={unlockAt} total={total} />
 			) : mounted && Game ? (
 				<Game
 					level={level}
 					active={active}
 					onEnd={onEnd}
 					onPlayingChange={onPlayingChange}
+					onNext={onNext}
 				/>
 			) : (
 				<CardPlaceholder game={game} />
 			)}
 
-			<div className="pointer-events-none absolute bottom-6 left-4 z-30 max-w-[65%] drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
+			<div // text-shadow, not a drop-shadow filter: a filtered layer next to the
+				// overlay's backdrop-filter stops painting in Chrome
+				className={clsx(
+					"pointer-events-none absolute bottom-6 left-4 z-30 max-w-[65%] transition-opacity duration-300 [text-shadow:0_2px_8px_rgb(0_0_0/0.45)]",
+					playing && "opacity-0",
+				)}
+			>
 				<h2 className="text-lg font-extrabold tracking-wide">
 					{game.emoji} {game.title}
 					{dailyDone && " ✅"}
@@ -75,7 +90,7 @@ function GameCardImpl({
 				<p className="mt-1 text-sm text-muted">{game.desc}</p>
 			</div>
 
-			{!locked && (
+			{!locked && !playing && (
 				<CardRail
 					game={game}
 					level={level}

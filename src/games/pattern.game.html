@@ -1,0 +1,404 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Pattern Echo" />
+		<meta name="playdeck:emoji" content="🧩" />
+		<meta
+			name="playdeck:desc"
+			content="The grid flashes a shape. Paint it back from memory."
+		/>
+		<meta name="playdeck:order" content="28" />
+		<meta name="playdeck:accent" content="#7c5cff" />
+		<meta
+			name="playdeck:instructions"
+			content="A set of tiles lights up briefly. Tap them all back before the timer drains — tap a wrong tile and the run ends. Four rounds, each a little bigger."
+		/>
+		<style>
+			:root {
+				--accent: #7c5cff;
+			}
+			/* ---- shared arcade layout: combo, per-answer timer, tiles ---- */
+			#game {
+				position: absolute;
+				inset: 92px 16px 92px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 16px;
+			}
+			#combo {
+				display: flex;
+				align-items: baseline;
+				gap: 10px;
+				height: 56px;
+				font-weight: 900;
+				color: var(--t-muted);
+				transition: color 0.2s;
+			}
+			#combo b {
+				display: inline-block;
+				font-size: 50px;
+				line-height: 1;
+			}
+			#combo span {
+				font-size: 13px;
+				letter-spacing: 0.2em;
+			}
+			#combo.hot {
+				color: var(--accent);
+				text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+			}
+			#combo.bump b {
+				animation: bump 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+			}
+			@keyframes bump {
+				from {
+					transform: scale(1.8);
+				}
+			}
+			#tbar {
+				width: min(84vw, 400px);
+				height: 8px;
+				border-radius: 99px;
+				background: color-mix(in srgb, var(--t-line) 80%, transparent);
+				overflow: hidden;
+				transition: opacity 0.2s;
+			}
+			#tbar i {
+				display: block;
+				height: 100%;
+				background: var(--accent);
+				border-radius: inherit;
+				transform-origin: left;
+			}
+			#tbar.low i {
+				background: var(--t-danger);
+			}
+			#tbar.off {
+				opacity: 0.3;
+			}
+			.tile {
+				animation: pin 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+				animation-delay: calc(var(--i, 0) * 30ms);
+			}
+			@keyframes pin {
+				from {
+					transform: scale(0.2);
+					opacity: 0;
+				}
+			}
+			.tile.hit {
+				animation: hit 0.25s ease-out;
+			}
+			@keyframes hit {
+				40% {
+					transform: scale(1.14);
+				}
+			}
+			.tile.wrong {
+				animation: wrong 0.4s;
+			}
+			/* only a tapped button turns red; text and grids just shake */
+			button.wrong {
+				border-color: var(--t-danger) !important;
+				background: color-mix(
+					in srgb,
+					var(--t-danger) 40%,
+					transparent
+				) !important;
+			}
+			@keyframes wrong {
+				20% {
+					transform: translateX(-10px);
+				}
+				40% {
+					transform: translateX(9px);
+				}
+				60% {
+					transform: translateX(-6px);
+				}
+				80% {
+					transform: translateX(4px);
+				}
+			}
+
+			/* ---- this game ---- */
+			#status {
+				font-size: 14px;
+				font-weight: 900;
+				letter-spacing: 0.3em;
+				height: 18px;
+				color: var(--t-muted);
+			}
+			#status.go {
+				color: var(--accent);
+			}
+			#grid {
+				display: grid;
+				gap: 10px;
+				width: min(80vw, 380px, calc(100vh - 320px));
+			}
+			.cell {
+				aspect-ratio: 1;
+				padding: 0;
+				background: var(--t-card);
+				border: 2px solid var(--t-line);
+				border-radius: 16px;
+				cursor: pointer;
+				transition:
+					background 0.15s,
+					box-shadow 0.15s,
+					border-color 0.15s;
+			}
+			.cell.lit {
+				border-color: var(--accent);
+				background: color-mix(in srgb, var(--accent) 55%, transparent);
+				box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 70%, transparent);
+			}
+			.cell.found {
+				border-color: var(--t-good);
+				background: color-mix(in srgb, var(--t-good) 30%, transparent);
+			}
+			.cell.missed {
+				border-color: var(--accent);
+				border-style: dashed;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="game">
+			<div id="combo" aria-live="polite"></div>
+			<div id="tbar" class="off"><i></i></div>
+			<div id="status" aria-live="polite"></div>
+			<div id="grid"></div>
+		</div>
+		<script>
+			// ---------- shared arcade kit (combo, per-answer timer, juice) ----------
+			const $ = (id) => document.getElementById(id);
+			const ACCENT = "#7c5cff",
+				GOLD = "#ffd24d";
+			const comboEl = $("combo"),
+				barEl = $("tbar"),
+				barFill = barEl.firstElementChild;
+			let state = "idle"; // idle | play (answer clock running) | wait | over
+			let timers = [],
+				raf = 0;
+			let score = 0,
+				streak = 0,
+				best = 0;
+			let limit = 1,
+				askedAt = 0; // per-answer clock: seconds allowed, start time (ms)
+
+			const after = (ms, fn) => timers.push(setTimeout(fn, ms));
+			function clearAll() {
+				timers.forEach(clearTimeout);
+				timers = [];
+				cancelAnimationFrame(raf);
+			}
+			function center(el) {
+				const r = el.getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			}
+			function retrigger(el, cls) {
+				el.classList.remove(cls);
+				void el.offsetWidth; // restart the CSS animation
+				el.classList.add(cls);
+			}
+			// ×1 → ×5, one step every 3 answers in a row
+			const mult = () => Math.min(1 + Math.floor(streak / 3), 5);
+			function drawCombo(bump) {
+				comboEl.innerHTML = `<b>×${mult()}</b><span>STREAK ${streak}</span>`;
+				comboEl.className = (mult() > 1 ? "hot " : "") + (bump ? "bump" : "");
+			}
+			function arm(seconds) {
+				limit = seconds;
+				askedAt = performance.now();
+				barEl.classList.remove("off", "low");
+				barFill.style.transform = "scaleX(1)";
+				state = "play";
+			}
+			function loop(now) {
+				if (state === "idle") return;
+				if (state === "play") {
+					const left = 1 - (now - askedAt) / 1000 / limit;
+					barFill.style.transform = `scaleX(${Math.max(left, 0)})`;
+					barEl.classList.toggle("low", left < 0.3);
+					if (left <= 0) timeout();
+				}
+				raf = requestAnimationFrame(loop);
+			}
+			// Correct answer: score with the streak multiplier, +N pop, burst, FAST!
+			function reward(el, base, color = ACCENT, sound = true) {
+				const took = (performance.now() - askedAt) / 1000;
+				const fast = took < limit * 0.35;
+				const before = mult();
+				streak += 1;
+				best = Math.max(best, streak);
+				const pts = base * mult() + (fast ? 5 : 0);
+				score += pts;
+				const { x, y } = center(el);
+				if (sound) playdeck.sfx("merge", 2 ** Math.min(streak + 1, 11)); // pitch climbs with the streak
+				playdeck.pop(x, y - 10, `+${pts}`, color);
+				playdeck.burst(x, y, color, 10 + mult() * 3);
+				if (fast) after(100, () => playdeck.pop(x, y - 50, "FAST!", GOLD));
+				if (mult() > before) {
+					const c = center(comboEl);
+					playdeck.pop(c.x, c.y + 40, `×${mult()} COMBO!`, ACCENT);
+				}
+				retrigger(el, "hit");
+				drawCombo(true);
+				state = "wait";
+				barEl.classList.add("off");
+				return fast;
+			}
+			// Fatal mistake: shake, let it register for a beat, then end.
+			function fail(el, note) {
+				state = "over";
+				barEl.classList.add("off");
+				playdeck.sfx("bad");
+				if (el) retrigger(el, "wrong");
+				after(750, () => {
+					state = "idle";
+					playdeck.end(false, score, note);
+				});
+			}
+			function win(bonus, note) {
+				state = "over";
+				score += bonus;
+				barEl.classList.add("off");
+				playdeck.flash(ACCENT);
+				playdeck.sfx("good");
+				after(400, () => {
+					state = "idle";
+					playdeck.end(true, score, note);
+				});
+			}
+
+			// ---------- Pattern Echo ----------
+			const ROUNDS = 4;
+			const gridEl = $("grid"),
+				statusEl = $("status");
+			let L = 1,
+				size = 3,
+				round = 0,
+				lit = new Set(),
+				found = new Set();
+
+			const shuffle = (arr) =>
+				arr
+					.map((v) => [Math.random(), v])
+					.sort((a, b) => a[0] - b[0])
+					.map((p) => p[1]);
+			const tapWindow = () => Math.max(2.6 - L * 0.1, 1.4);
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`ROUND ${Math.min(round + 1, ROUNDS)}/${ROUNDS}`,
+						`${score} PTS`,
+					],
+				});
+			}
+
+			function setStatus(text, go) {
+				statusEl.textContent = text;
+				statusEl.className = go ? "go" : "";
+			}
+
+			// Deal a fresh grid, flash the pattern, then hand over to the player.
+			function newRound() {
+				const k = Math.min(
+					3 + Math.ceil(L / 2) + Math.floor(round / 2),
+					size * size - 2,
+				);
+				lit = new Set(
+					shuffle(Array.from({ length: size * size }, (_, i) => i)).slice(0, k),
+				);
+				found = new Set();
+				gridEl.style.gridTemplateColumns = `repeat(${size}, minmax(0, 1fr))`;
+				gridEl.innerHTML = "";
+				for (let i = 0; i < size * size; i++) {
+					const b = document.createElement("button");
+					b.type = "button";
+					b.className = "tile cell";
+					b.dataset.i = i;
+					b.style.setProperty("--i", (i % size) + Math.floor(i / size));
+					b.setAttribute("aria-label", `Cell ${i + 1}`);
+					gridEl.append(b);
+				}
+				state = "wait";
+				barEl.classList.add("off");
+				setStatus("MEMORIZE", false);
+				hud();
+				const show = Math.max(1300 - L * 50, 800) + k * 60;
+				after(250, () => {
+					for (const i of lit) gridEl.children[i].classList.add("lit");
+					playdeck.sfx("pop");
+				});
+				after(250 + show, () => {
+					for (const i of lit) gridEl.children[i].classList.remove("lit");
+					setStatus("REPEAT!", true);
+					arm(tapWindow() + 0.5);
+				});
+			}
+
+			function tap(b) {
+				if (!playdeck.running || state !== "play" || !b) return;
+				const i = +b.dataset.i;
+				if (found.has(i)) return;
+				if (!lit.has(i)) {
+					for (const j of lit)
+						if (!found.has(j)) gridEl.children[j].classList.add("missed");
+					return fail(b, "Wrong tile");
+				}
+				found.add(i);
+				b.classList.add("found");
+				reward(b, 3, "#3dffa0");
+				if (found.size < lit.size) {
+					arm(tapWindow());
+					return;
+				}
+				// round complete
+				round += 1;
+				hud();
+				if (round >= ROUNDS)
+					return win(25 + best * 2, `Total recall! Streak ${best}`);
+				const { x, y } = center(gridEl);
+				playdeck.sfx("good");
+				playdeck.pop(x, y, "PERFECT!", ACCENT);
+				setStatus("", false);
+				after(550, newRound);
+			}
+
+			function timeout() {
+				for (const j of lit)
+					if (!found.has(j)) gridEl.children[j].classList.add("missed");
+				fail(gridEl, "Too slow");
+			}
+
+			gridEl.addEventListener("pointerdown", (e) =>
+				tap(e.target.closest("button")),
+			);
+
+			playdeck.onStart(({ level }) => {
+				clearAll();
+				L = Math.min(Math.max(level, 1), 12);
+				size = L >= 4 ? 4 : 3;
+				score = streak = best = round = 0;
+				drawCombo(false);
+				newRound();
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				clearAll();
+				state = "idle";
+				barEl.classList.add("off");
+				gridEl.innerHTML = "";
+				setStatus("", false);
+			});
+		</script>
+	</body>
+</html>

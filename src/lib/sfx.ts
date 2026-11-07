@@ -175,6 +175,10 @@ export const sfx = {
 	step() {
 		play({ freq: 440, dur: 0.025, type: "square", gain: 0.03 });
 	},
+	/** a plain musical note — for games whose notes carry meaning (pads, tiles) */
+	note(freq: number, dur: number) {
+		play({ freq, dur, type: "triangle", gain: 0.07 });
+	},
 	/** bubble pop */
 	pop() {
 		play({ freq: 900, to: 320, dur: 0.07, type: "sine", gain: 0.05 });
@@ -216,6 +220,17 @@ export const sfx = {
 		buzz(12);
 	},
 
+	/** a streak milestone — climbs higher with each tier */
+	streak(tier: number) {
+		const base = 523 * 2 ** (Math.min(tier, 6) / 6);
+		melody(
+			[base, base * 1.26, base * 1.5, base * 2],
+			{ dur: 0.1, type: "triangle", gain: 0.06 },
+			0.05,
+		);
+		buzz([15, 25, 15]);
+	},
+
 	// ---- outcomes ----
 	win() {
 		melody(
@@ -246,3 +261,42 @@ export const sfx = {
 		buzz([40, 60, 40, 60, 100]);
 	},
 };
+
+/** the in-game action cues — what a game plays for its own moves */
+export const GAME_CUES = [
+	"good",
+	"bad",
+	"step",
+	"pop",
+	"hit",
+	"boom",
+	"bounce",
+	"collect",
+	"flap",
+	"merge",
+] as const;
+
+export type GameCue = (typeof GAME_CUES)[number];
+
+const cueListeners = new Set<(cue: GameCue) => void>();
+
+/**
+ * Observe in-game cues as they fire — visuals key off the same moments the
+ * sounds do. Fires even when muted: sound off is not juice off.
+ */
+export function onCue(listener: (cue: GameCue) => void): () => void {
+	cueListeners.add(listener);
+	return () => {
+		cueListeners.delete(listener);
+	};
+}
+
+for (const cue of GAME_CUES) {
+	const original = sfx[cue] as (...args: Array<unknown>) => void;
+	(sfx as Record<GameCue, (...args: Array<unknown>) => void>)[cue] = (
+		...args
+	) => {
+		original(...args);
+		for (const l of cueListeners) l(cue);
+	};
+}

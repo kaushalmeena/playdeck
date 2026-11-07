@@ -1,0 +1,754 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Mini Putt" />
+		<meta name="playdeck:emoji" content="⛳" />
+		<meta name="playdeck:desc" content="Three tiny holes. Pull, aim, sink." />
+		<meta name="playdeck:order" content="22" />
+		<meta name="playdeck:accent" content="#ffd24d" />
+		<meta
+			name="playdeck:instructions"
+			content="Drag back from the ball and let go to putt — longer drag, harder hit. Bank off the walls and roll in slowly. Clear all 3 holes within par +1."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#ffd24d";
+			const C_WALL = "#00e5ff";
+			const C_MOVER = "#ff4d8a";
+			const C_BUMPER = "#ff5cd0";
+			const HOLES = 3;
+			const BALL_R = 8;
+			const MAX_DRAG = 170; // px of drag for full power
+			const FRICTION_A = 200; // constant rolling drag, px/s²
+			const FRICTION_K = 1.2; // speed-proportional drag, 1/s
+			const SINK_SPEED = 430; // must be slower than this over the cup
+			const STOP_SPEED = 12;
+
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let raf = 0,
+				state = "idle", // aim | roll | sink | between | ending | idle
+				level = 1,
+				timer = 0,
+				endArgs = null;
+			let textColor = "#eaeaf2";
+			// course rect + per-hole content
+			let course = { x: 0, y: 0, w: 0, h: 0 },
+				S = 1,
+				vMax = 1300;
+			let walls = [], // { x, y, w, h, vx, min, max, kind }
+				bumper = null, // { ax, ay, bx, by, hit }
+				cup = { x: 0, y: 0, r: 13 };
+			const ball = { x: 0, y: 0, vx: 0, vy: 0, scale: 1, shot: false };
+			let hole = 0,
+				par = 3,
+				limit = 4,
+				strokes = 0,
+				score = 0,
+				underPar = 0,
+				aces = 0,
+				lastBounce = 0;
+			let aim = null; // { id, sx, sy, x, y }
+			let pops = [],
+				sparks = [];
+
+			const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+			const rand = (a, b) => a + Math.random() * (b - a);
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			addEventListener("resize", () => {
+				resize();
+				// rebuild the current hole so it always fits the new viewport
+				if (state === "aim" || state === "roll") buildHole(false);
+			});
+			resize();
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`⛳ ${Math.min(hole + 1, HOLES)}/${HOLES}`,
+						`Par ${par}`,
+						`Shots ${strokes}/${limit}`,
+					],
+				});
+			}
+
+			// ---- hole generation ------------------------------------------
+			function layoutCourse() {
+				const cw = Math.min(W - 40, 400);
+				const ch = Math.min(Math.max(H - 220, 300), 620);
+				course = {
+					x: (W - cw) / 2,
+					y: Math.max(100, (H - ch) / 2),
+					w: cw,
+					h: ch,
+				};
+				S = clamp(ch / 600, 0.75, 1.15);
+				vMax = 1300 * S;
+			}
+
+			function buildHole(fresh) {
+				layoutCourse();
+				const L = Math.min(level, 8);
+				const { x: cx, y: cy, w: cw, h: ch } = course;
+				// first hole at level 1 is a straight-ish ace chance
+				// obstacle slots need ≥48px between them so the ball can always slip through
+				const maxItems = Math.max(0, Math.floor((ch - 170) / 48) - 1);
+				const mover = L >= 4 && maxItems >= 1;
+				const bars = clamp(
+					1 + Math.floor((L - 1) / 2) - (L === 1 && hole === 0 ? 1 : 0),
+					0,
+					Math.min(3, maxItems - (mover ? 1 : 0)),
+				);
+				const wantBumper = L >= 3;
+				const tighten = (L >= 3 ? 1 : 0) + (L >= 6 ? 1 : 0);
+				par = clamp(2 + Math.ceil(bars / 2) + (mover ? 1 : 0) - tighten, 2, 4);
+				limit = par + 1;
+
+				cup = {
+					x: cx + cw * rand(0.2, 0.8),
+					y: cy + 50,
+					r: 13 - Math.min(L, 6) * 0.4,
+				};
+				Object.assign(ball, {
+					x: cx + cw * rand(0.2, 0.8),
+					y: cy + ch - 45,
+					vx: 0,
+					vy: 0,
+					scale: 1,
+					shot: false,
+				});
+
+				// boundary: thick blocks just outside the course
+				const T = 40;
+				walls = [
+					{ x: cx - T, y: cy - T, w: cw + 2 * T, h: T, kind: "edge" },
+					{ x: cx - T, y: cy + ch, w: cw + 2 * T, h: T, kind: "edge" },
+					{ x: cx - T, y: cy, w: T, h: ch, kind: "edge" },
+					{ x: cx + cw, y: cy, w: T, h: ch, kind: "edge" },
+				];
+
+				// obstacles sit in evenly spaced horizontal slots between ball and cup
+				const yTop = cy + 85,
+					yBot = cy + ch - 85;
+				const items = bars + (mover ? 1 : 0);
+				const gap = (yBot - yTop) / (items + 1);
+				const moverSlot = mover ? Math.floor(Math.random() * items) : -1;
+				let lastAnchor = Math.random() < 0.5 ? "left" : "right";
+				for (let k = 0; k < items; k++) {
+					const y = yTop + gap * (k + 1);
+					if (k === moverSlot) {
+						const w = cw * 0.26;
+						const min = cx + 26,
+							max = cx + cw - 26 - w;
+						walls.push({
+							x: rand(min, max),
+							y: y - 6,
+							w,
+							h: 12,
+							vx:
+								(Math.random() < 0.5 ? -1 : 1) * Math.min(70 + 8 * L, 140) * S,
+							min,
+							max,
+							kind: "mover",
+						});
+						continue;
+					}
+					// alternate wall-anchored bars so the path snakes; sometimes a centre bar
+					const anchor =
+						Math.random() < 0.25
+							? "center"
+							: lastAnchor === "left"
+								? "right"
+								: "left";
+					lastAnchor = anchor === "center" ? lastAnchor : anchor;
+					const w =
+						cw * (anchor === "center" ? rand(0.35, 0.48) : rand(0.45, 0.6));
+					const x =
+						anchor === "left"
+							? cx
+							: anchor === "right"
+								? cx + cw - w
+								: cx + (cw - w) / 2;
+					walls.push({ x, y: y - 7, w, h: 14, kind: "bar" });
+				}
+
+				// one angled bumper from level 3, placed between the cup and the first slot
+				bumper = null;
+				if (wantBumper) {
+					const by = yTop + gap * 0.5;
+					const len = Math.min(64, Math.max(30, (gap - 54) * 1.41)); // leaves ≥20px clearance to neighbouring slots
+					for (let tries = 0; tries < 8 && !bumper; tries++) {
+						const bx = cx + cw * rand(0.25, 0.75);
+						if (Math.hypot(bx - cup.x, by - cup.y) < 50) continue;
+						const dir = Math.random() < 0.5 ? 1 : -1;
+						const h = (len / 2) * Math.SQRT1_2;
+						bumper = {
+							ax: bx - h,
+							ay: by - h * dir,
+							bx: bx + h,
+							by: by + h * dir,
+							hit: 0,
+						};
+					}
+				}
+
+				strokes = 0;
+				aim = null;
+				state = "aim";
+				hud();
+				if (fresh) {
+					const mid = course.y + course.h / 2;
+					bigPop(W / 2, mid, `HOLE ${hole + 1}`, textColor, 40);
+					bigPop(W / 2, mid + 40, `PAR ${par}`, ACCENT, 24);
+				}
+			}
+
+			// ---- run lifecycle --------------------------------------------
+			playdeck.onStart(({ level: lv }) => {
+				level = lv;
+				const css = getComputedStyle(document.documentElement);
+				textColor = css.getPropertyValue("--t-text").trim() || "#eaeaf2";
+				hole = 0;
+				score = 0;
+				underPar = 0;
+				aces = 0;
+				pops = [];
+				sparks = [];
+				endArgs = null;
+				buildHole(true);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt, now);
+					draw(now);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				aim = null;
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function endRun(won, note, delay) {
+				state = "ending";
+				endArgs = [won, score, note];
+				timer = delay;
+			}
+
+			// ---- input ----------------------------------------------------
+			const ballStill = () => Math.hypot(ball.vx, ball.vy) < STOP_SPEED;
+
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || state !== "aim" || !ballStill()) return;
+				canvas.setPointerCapture(e.pointerId);
+				aim = {
+					id: e.pointerId,
+					sx: e.clientX,
+					sy: e.clientY,
+					x: e.clientX,
+					y: e.clientY,
+				};
+			});
+			canvas.addEventListener("pointermove", (e) => {
+				if (!aim || e.pointerId !== aim.id) return;
+				aim.x = e.clientX;
+				aim.y = e.clientY;
+			});
+			canvas.addEventListener("pointerup", (e) => {
+				if (!aim || e.pointerId !== aim.id) return;
+				const a = aimVector();
+				aim = null;
+				if (!a || state !== "aim" || !playdeck.running) return;
+				ball.vx = a.dx * a.power * vMax;
+				ball.vy = a.dy * a.power * vMax;
+				ball.shot = true;
+				strokes += 1;
+				state = "roll";
+				playdeck.sfx("hit");
+				hud();
+			});
+			canvas.addEventListener("pointercancel", () => {
+				aim = null;
+			});
+
+			// drag back = shoot forward; returns unit dir + 0..1 power, or null if too short
+			function aimVector() {
+				if (!aim) return null;
+				const px = aim.sx - aim.x,
+					py = aim.sy - aim.y;
+				const len = Math.hypot(px, py);
+				if (len < 12) return null;
+				return {
+					dx: px / len,
+					dy: py / len,
+					power: Math.min(len / MAX_DRAG, 1),
+				};
+			}
+
+			// ---- physics --------------------------------------------------
+			function bounceSfx(impact, now) {
+				if (impact > 70 && now - lastBounce > 70) {
+					lastBounce = now;
+					playdeck.sfx("bounce");
+				}
+			}
+
+			// pushes the ball out along normal (nx, ny) and reflects its velocity
+			function resolve(nx, ny, depth, wallVx, e, now) {
+				ball.x += nx * depth;
+				ball.y += ny * depth;
+				const rvx = ball.vx - wallVx;
+				const vn = rvx * nx + ball.vy * ny;
+				if (vn < 0) {
+					ball.vx -= (1 + e) * vn * nx;
+					ball.vy -= (1 + e) * vn * ny;
+					bounceSfx(-vn, now);
+					return -vn;
+				}
+				return 0;
+			}
+
+			function collideRect(r, now) {
+				const qx = clamp(ball.x, r.x, r.x + r.w);
+				const qy = clamp(ball.y, r.y, r.y + r.h);
+				let dx = ball.x - qx,
+					dy = ball.y - qy;
+				const d2 = dx * dx + dy * dy;
+				if (d2 >= BALL_R * BALL_R) return;
+				if (d2 > 1e-6) {
+					const d = Math.sqrt(d2);
+					resolve(dx / d, dy / d, BALL_R - d, r.vx || 0, 0.78, now);
+				} else {
+					// centre inside the rect: leave along the shallowest side
+					const opts = [
+						[ball.x - r.x, -1, 0],
+						[r.x + r.w - ball.x, 1, 0],
+						[ball.y - r.y, 0, -1],
+						[r.y + r.h - ball.y, 0, 1],
+					].sort((a, b) => a[0] - b[0]);
+					const [pen, nx, ny] = opts[0];
+					resolve(nx, ny, pen + BALL_R, r.vx || 0, 0.78, now);
+				}
+			}
+
+			function collideBumper(b, now) {
+				const ex = b.bx - b.ax,
+					ey = b.by - b.ay;
+				const t = clamp(
+					((ball.x - b.ax) * ex + (ball.y - b.ay) * ey) / (ex * ex + ey * ey),
+					0,
+					1,
+				);
+				const qx = b.ax + ex * t,
+					qy = b.ay + ey * t;
+				const dx = ball.x - qx,
+					dy = ball.y - qy;
+				const d = Math.hypot(dx, dy);
+				const rad = BALL_R + 3; // bumper has a little thickness
+				if (d >= rad || d < 1e-6) return;
+				const nx = dx / d,
+					ny = dy / d;
+				const hit = resolve(nx, ny, rad - d, 0, 0.95, now);
+				if (hit > 40) {
+					// springy kick
+					ball.vx += nx * 60;
+					ball.vy += ny * 60;
+					b.hit = 1;
+					spark(qx, qy, C_BUMPER, 6);
+				}
+			}
+
+			function step(dt, now) {
+				for (const p of pops) p.t += dt;
+				pops = pops.filter((p) => p.t < p.life);
+				for (const s of sparks) {
+					s.t += dt;
+					s.x += s.vx * dt;
+					s.y += s.vy * dt;
+					s.vx *= 0.92;
+					s.vy *= 0.92;
+				}
+				sparks = sparks.filter((s) => s.t < s.life);
+				if (bumper) bumper.hit = Math.max(0, bumper.hit - dt * 4);
+
+				// movers keep moving during aim and roll
+				for (const w of walls) {
+					if (w.kind !== "mover") continue;
+					w.x += w.vx * dt;
+					if (w.x < w.min) ((w.x = w.min), (w.vx = Math.abs(w.vx)));
+					else if (w.x > w.max) ((w.x = w.max), (w.vx = -Math.abs(w.vx)));
+				}
+
+				if (state === "aim" || state === "roll") physics(dt, now);
+
+				if (state === "sink") {
+					ball.scale = Math.max(0, ball.scale - dt * 3.5);
+					ball.x += (cup.x - ball.x) * Math.min(1, dt * 14);
+					ball.y += (cup.y - ball.y) * Math.min(1, dt * 14);
+					timer -= dt;
+					if (timer <= 0) {
+						hole += 1;
+						if (hole >= HOLES) {
+							playdeck.flash(ACCENT);
+							endRun(
+								true,
+								aces
+									? `${aces} hole${aces > 1 ? "s" : ""} in one!`
+									: underPar > 0
+										? `${underPar} under par`
+										: "Course cleared",
+								0.3,
+							);
+						} else {
+							state = "between";
+							timer = 0.15;
+						}
+					}
+				} else if (state === "between") {
+					timer -= dt;
+					if (timer <= 0) buildHole(true);
+				} else if (state === "ending") {
+					timer -= dt;
+					if (timer <= 0) {
+						state = "idle";
+						playdeck.end(...endArgs);
+					}
+				}
+			}
+
+			function physics(dt, now) {
+				let speed = Math.hypot(ball.vx, ball.vy);
+				// substeps keep fast putts from tunnelling through thin bars
+				const n = Math.max(1, Math.ceil((speed * dt) / 3));
+				const h = dt / n;
+				for (let i = 0; i < n; i++) {
+					speed = Math.hypot(ball.vx, ball.vy);
+					if (speed > 0) {
+						const dec = Math.min(speed, (FRICTION_A + FRICTION_K * speed) * h);
+						ball.vx -= (ball.vx / speed) * dec;
+						ball.vy -= (ball.vy / speed) * dec;
+					}
+					// the cup gently pulls a slow ball in
+					const cdx = cup.x - ball.x,
+						cdy = cup.y - ball.y;
+					const cd = Math.hypot(cdx, cdy);
+					if (cd < cup.r + 5 && speed < SINK_SPEED && cd > 0.01) {
+						ball.vx += (cdx / cd) * 700 * h;
+						ball.vy += (cdy / cd) * 700 * h;
+					}
+					ball.x += ball.vx * h;
+					ball.y += ball.vy * h;
+					for (const w of walls) collideRect(w, now);
+					if (bumper) collideBumper(bumper, now);
+
+					if (cd < cup.r && Math.hypot(ball.vx, ball.vy) < SINK_SPEED) {
+						sink();
+						return;
+					}
+				}
+				if (state === "roll" && ballStill()) {
+					ball.vx = ball.vy = 0;
+					if (strokes >= limit) {
+						playdeck.sfx("bad");
+						bigPop(
+							W / 2,
+							course.y + course.h / 2,
+							"OUT OF SHOTS",
+							"#ff4d6d",
+							34,
+						);
+						endRun(false, `Ran dry on hole ${hole + 1}`, 0.8);
+					} else state = "aim";
+				}
+			}
+
+			function sink() {
+				state = "sink";
+				aim = null;
+				const diff = strokes - par;
+				let label, pts, color;
+				if (strokes === 1) {
+					label = "HOLE IN ONE!";
+					pts = 150;
+					color = ACCENT;
+					aces += 1;
+				} else if (diff <= -2)
+					((label = "EAGLE!"), (pts = 120), (color = "#3dffa0"));
+				else if (diff === -1)
+					((label = "BIRDIE!"), (pts = 90), (color = "#3dffa0"));
+				else if (diff === 0) ((label = "PAR"), (pts = 60), (color = C_WALL));
+				else ((label = "BOGEY"), (pts = 30), (color = textColor));
+				if (diff < 0) underPar -= diff;
+				score += pts;
+				const big = strokes === 1;
+				if (big) {
+					// the big moment
+					playdeck.flash(ACCENT);
+					playdeck.shake(2);
+					playdeck.sfx("merge", 2048);
+					playdeck.sfx("good");
+					playdeck.burst(cup.x, cup.y, ACCENT, 60);
+					playdeck.burst(cup.x - 40, cup.y + 20, "#ff5cd0", 24);
+					playdeck.burst(cup.x + 40, cup.y + 20, "#00e5ff", 24);
+					spark(cup.x, cup.y, ACCENT, 40);
+					bigPop(W / 2, course.y + course.h * 0.45, label, ACCENT, 52, 1.6);
+				} else {
+					playdeck.sfx("good");
+					playdeck.burst(cup.x, cup.y, color, 18);
+					spark(cup.x, cup.y, color, 14);
+					bigPop(W / 2, course.y + course.h * 0.45, label, color, 40);
+				}
+				playdeck.pop(cup.x, cup.y - 24, `+${pts}`, color);
+				timer = big ? 1.5 : 1.0;
+				hud();
+			}
+
+			// ---- fx -------------------------------------------------------
+			function bigPop(x, y, text, color, size, life = 1.1) {
+				pops.push({ x, y, text, color, size, t: 0, life });
+			}
+			function spark(x, y, c, n) {
+				for (let i = 0; i < n; i++) {
+					const a = Math.random() * Math.PI * 2;
+					const v = rand(80, 320);
+					sparks.push({
+						x,
+						y,
+						vx: Math.cos(a) * v,
+						vy: Math.sin(a) * v,
+						t: 0,
+						life: rand(0.3, 0.7),
+						c,
+					});
+				}
+			}
+
+			// ---- rendering ------------------------------------------------
+			function glowRect(x, y, w, h, c, fillAlpha) {
+				ctx.shadowColor = c;
+				ctx.shadowBlur = 14;
+				ctx.strokeStyle = c;
+				ctx.lineWidth = 2;
+				ctx.fillStyle = c + fillAlpha;
+				ctx.beginPath();
+				ctx.roundRect(x, y, w, h, 5);
+				ctx.fill();
+				ctx.stroke();
+				ctx.shadowBlur = 0;
+			}
+
+			function draw(now) {
+				ctx.clearRect(0, 0, W, H);
+				if (state === "idle") return;
+				const { x: cx, y: cy, w: cw, h: ch } = course;
+
+				// course outline
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 18;
+				ctx.strokeStyle = ACCENT;
+				ctx.lineWidth = 3;
+				ctx.fillStyle = ACCENT + "0d";
+				ctx.beginPath();
+				ctx.roundRect(cx, cy, cw, ch, 10);
+				ctx.fill();
+				ctx.stroke();
+				ctx.shadowBlur = 0;
+
+				// tee marker
+				ctx.strokeStyle = ACCENT + "55";
+				ctx.lineWidth = 1;
+				ctx.setLineDash([3, 4]);
+				ctx.beginPath();
+				ctx.moveTo(cx + 12, cy + ch - 80);
+				ctx.lineTo(cx + cw - 12, cy + ch - 80);
+				ctx.stroke();
+				ctx.setLineDash([]);
+
+				// cup + flag
+				const pulse = 0.5 + 0.5 * Math.sin(now / 250);
+				ctx.shadowColor = "#3dffa0";
+				ctx.shadowBlur = 10 + pulse * 10;
+				ctx.strokeStyle = "#3dffa0";
+				ctx.lineWidth = 2;
+				ctx.fillStyle = "rgba(0,0,0,0.45)";
+				ctx.beginPath();
+				ctx.arc(cup.x, cup.y, cup.r, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(cup.x, cup.y);
+				ctx.lineTo(cup.x, cup.y - 34);
+				ctx.stroke();
+				ctx.fillStyle = "#3dffa0";
+				ctx.beginPath();
+				ctx.moveTo(cup.x, cup.y - 34);
+				ctx.lineTo(cup.x + 16, cup.y - 29);
+				ctx.lineTo(cup.x, cup.y - 24);
+				ctx.closePath();
+				ctx.fill();
+				ctx.shadowBlur = 0;
+
+				// obstacles
+				for (const w of walls) {
+					if (w.kind === "bar") glowRect(w.x, w.y, w.w, w.h, C_WALL, "22");
+					else if (w.kind === "mover")
+						glowRect(w.x, w.y, w.w, w.h, C_MOVER, "33");
+				}
+				if (bumper) {
+					ctx.shadowColor = C_BUMPER;
+					ctx.shadowBlur = 14 + bumper.hit * 20;
+					ctx.strokeStyle = C_BUMPER;
+					ctx.lineCap = "round";
+					ctx.lineWidth = 6 + bumper.hit * 3;
+					ctx.beginPath();
+					ctx.moveTo(bumper.ax, bumper.ay);
+					ctx.lineTo(bumper.bx, bumper.by);
+					ctx.stroke();
+					ctx.lineCap = "butt";
+					ctx.shadowBlur = 0;
+				}
+
+				// aim: rubber band, dotted guide (low levels), power ring
+				const a = aimVector();
+				if (a && state === "aim") {
+					const col =
+						a.power < 0.5 ? "#3dffa0" : a.power < 0.85 ? ACCENT : "#ff4d6d";
+					// pull-back band
+					ctx.strokeStyle = textColor;
+					ctx.globalAlpha = 0.35;
+					ctx.lineWidth = 2;
+					ctx.beginPath();
+					ctx.moveTo(ball.x, ball.y);
+					ctx.lineTo(
+						ball.x - a.dx * a.power * 70,
+						ball.y - a.dy * a.power * 70,
+					);
+					ctx.stroke();
+					ctx.globalAlpha = 1;
+					if (level <= 2) {
+						const len = 60 + a.power * 240;
+						ctx.fillStyle = col;
+						for (let d = 18; d < len; d += 12) {
+							ctx.globalAlpha = 1 - d / len;
+							ctx.beginPath();
+							ctx.arc(
+								ball.x + a.dx * d,
+								ball.y + a.dy * d,
+								2.4,
+								0,
+								Math.PI * 2,
+							);
+							ctx.fill();
+						}
+						ctx.globalAlpha = 1;
+					} else {
+						// short arrow only
+						const len = 24 + a.power * 36;
+						const tx = ball.x + a.dx * len,
+							ty = ball.y + a.dy * len;
+						ctx.strokeStyle = col;
+						ctx.lineWidth = 3;
+						ctx.beginPath();
+						ctx.moveTo(ball.x + a.dx * 14, ball.y + a.dy * 14);
+						ctx.lineTo(tx, ty);
+						ctx.lineTo(tx - a.dx * 8 - a.dy * 6, ty - a.dy * 8 + a.dx * 6);
+						ctx.moveTo(tx, ty);
+						ctx.lineTo(tx - a.dx * 8 + a.dy * 6, ty - a.dy * 8 - a.dx * 6);
+						ctx.stroke();
+					}
+					// power ring around the ball
+					ctx.shadowColor = col;
+					ctx.shadowBlur = 12;
+					ctx.strokeStyle = col;
+					ctx.lineWidth = 4;
+					ctx.beginPath();
+					ctx.arc(
+						ball.x,
+						ball.y,
+						BALL_R + 9,
+						-Math.PI / 2,
+						-Math.PI / 2 + a.power * Math.PI * 2,
+					);
+					ctx.stroke();
+					ctx.shadowBlur = 0;
+				}
+
+				// ball
+				if (ball.scale > 0) {
+					ctx.shadowColor = textColor;
+					ctx.shadowBlur = 14;
+					ctx.fillStyle = textColor;
+					ctx.beginPath();
+					ctx.arc(ball.x, ball.y, BALL_R * ball.scale, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.shadowBlur = 0;
+				}
+				// idle hint ring when it's your shot
+				if (state === "aim" && !aim && ballStill()) {
+					ctx.strokeStyle = ACCENT;
+					ctx.globalAlpha = 0.25 + 0.35 * pulse;
+					ctx.lineWidth = 2;
+					ctx.beginPath();
+					ctx.arc(ball.x, ball.y, BALL_R + 6 + pulse * 6, 0, Math.PI * 2);
+					ctx.stroke();
+					ctx.globalAlpha = 1;
+				}
+
+				// sparks
+				for (const s of sparks) {
+					ctx.globalAlpha = 1 - s.t / s.life;
+					ctx.fillStyle = s.c;
+					ctx.beginPath();
+					ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2);
+					ctx.fill();
+				}
+				ctx.globalAlpha = 1;
+
+				// big pops
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				for (const p of pops) {
+					const k = p.t / p.life;
+					const scale =
+						k < 0.12 ? 0.3 + (k / 0.12) * 0.95 : 1.25 - (k - 0.12) * 0.3;
+					ctx.globalAlpha = k < 0.65 ? 1 : 1 - (k - 0.65) / 0.35;
+					ctx.font = `900 ${Math.round(p.size * scale)}px system-ui, sans-serif`;
+					ctx.shadowColor = p.color;
+					ctx.shadowBlur = 22;
+					ctx.fillStyle = p.color;
+					ctx.fillText(p.text, p.x, p.y - k * 24);
+				}
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 1;
+			}
+		</script>
+	</body>
+</html>

@@ -12,6 +12,7 @@
  * 4. Cancel a live run when `active` goes false (the user scrolled away).
  */
 import { useEffect, useState } from "react";
+
 import { GameChrome } from "../components/game/GameChrome";
 import type { GameMeta, GameProps } from "./kit";
 import { sfx, useRun } from "./kit";
@@ -66,7 +67,7 @@ export default function MyGame({
 			onPlay={start}
 			onPlayingChange={onPlayingChange}
 		>
-			<div className="flex h-full w-full items-center justify-center">
+			<div className="flex size-full items-center justify-center">
 				<button
 					type="button"
 					onPointerDown={tap}

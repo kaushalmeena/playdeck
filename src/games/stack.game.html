@@ -1,0 +1,345 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Sky Stack" />
+		<meta name="playdeck:emoji" content="🏗️" />
+		<meta
+			name="playdeck:desc"
+			content="Drop the block. Keep what overlaps. Reach the top."
+		/>
+		<meta name="playdeck:order" content="12" />
+		<meta name="playdeck:accent" content="#12b76a" />
+		<meta
+			name="playdeck:instructions"
+			content="A block slides back and forth — tap (or Space) to drop it on the stack. Only the overlap survives, but a PERFECT drop keeps the full width, and a streak of them grows the block back. Stack to the goal height."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: none;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const BLOCK_H = 26,
+				ACCENT = "#3dffa0",
+				GOLD = "#ffd24d",
+				RED = "#ff4d6d";
+			const PERFECT_PX = 7; // drop within this many px of the block below = PERFECT
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let state = "idle",
+				raf = 0,
+				endTimer = 0;
+			let goal = 0,
+				speed = 0,
+				score = 0,
+				combo = 0,
+				perfects = 0;
+			let stack = [], // { x, w, flash }
+				debris = [], // falling cut-offs: { x, y, w, vy, vr, rot, hue }
+				cur = null; // { x, w, dir }
+			let cam = 0, // smoothed camera offset
+				ink = "#eaeaf2";
+
+			const hue = (i) => 150 + i * 14;
+			const baseY = () => H - 120; // top of the ground block; bottom 90px stays free
+			const layerY = (i) => baseY() - i * BLOCK_H + cam;
+			const built = () => stack.length - 1;
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`🏗️ ${built()}/${goal}`,
+						combo > 1 ? `✨ ×${combo}` : `✨ ${perfects}`,
+					],
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				ink =
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--t-text")
+						.trim() || "#eaeaf2";
+				goal = 9 + Math.min(L, 8);
+				speed = Math.min(170 + L * 25, 430);
+				score = combo = perfects = 0;
+				cam = 0;
+				const w = Math.min(W * 0.5, 230);
+				stack = [{ x: W / 2 - w / 2, w, flash: 0 }];
+				debris = [];
+				nextBlock();
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			// New blocks enter from alternating sides at the current width.
+			function nextBlock() {
+				const top = stack[stack.length - 1];
+				const fromLeft = stack.length % 2 === 1;
+				cur = { x: fromLeft ? 0 : W - top.w, w: top.w, dir: fromLeft ? 1 : -1 };
+			}
+
+			function drop() {
+				if (!playdeck.running || state !== "run") return;
+				const top = stack[stack.length - 1];
+				const y = layerY(stack.length);
+				const off = cur.x - top.x;
+
+				if (Math.abs(off) <= PERFECT_PX) {
+					// PERFECT: snap onto the block below, nothing is cut off
+					combo += 1;
+					perfects += 1;
+					// three or more in a row grows the block back a little
+					const grow = combo >= 3 ? Math.min(12, W * 0.6 - top.w) : 0;
+					const w = top.w + Math.max(grow, 0);
+					const x = top.x - Math.max(grow, 0) / 2;
+					stack.push({ x, w, flash: 1 });
+					const pts = 15 + combo * 5;
+					score += pts;
+					const cx = x + w / 2;
+					playdeck.sfx("merge", 2 ** Math.min(combo + 1, 10));
+					playdeck.burst(cx, y + BLOCK_H / 2, GOLD, 14 + combo * 2);
+					playdeck.pop(
+						cx,
+						y - 16,
+						combo > 1 ? `PERFECT ×${combo}` : "PERFECT",
+						GOLD,
+					);
+					playdeck.pop(
+						cx,
+						y + 10,
+						grow > 0 ? `+${pts} WIDER` : `+${pts}`,
+						GOLD,
+					);
+				} else {
+					const left = Math.max(cur.x, top.x);
+					const right = Math.min(cur.x + cur.w, top.x + top.w);
+					const overlap = right - left;
+					if (overlap <= 8) return miss(y);
+					combo = 0;
+					// the overhang breaks off and tumbles away
+					const cutX = cur.x < top.x ? cur.x : right;
+					debris.push({
+						x: cutX,
+						y,
+						w: cur.w - overlap,
+						vy: 0,
+						vr: (cur.x < top.x ? -1 : 1) * (2 + Math.random() * 2),
+						rot: 0,
+						hue: hue(stack.length),
+					});
+					stack.push({ x: left, w: overlap, flash: 0.6 });
+					const pts = 10 + Math.round((overlap / top.w) * 5);
+					score += pts;
+					playdeck.sfx("hit");
+					playdeck.burst(left + overlap / 2, y + BLOCK_H / 2, ACCENT, 8);
+					playdeck.pop(left + overlap / 2, y - 14, `+${pts}`, ACCENT);
+				}
+				hud();
+				if (built() >= goal) return win();
+				nextBlock();
+			}
+
+			function miss(y) {
+				state = "dying";
+				combo = 0;
+				// the whole block falls
+				debris.push({
+					x: cur.x,
+					y,
+					w: cur.w,
+					vy: 0,
+					vr: cur.dir * 3,
+					rot: 0,
+					hue: hue(stack.length),
+				});
+				cur = null;
+				playdeck.sfx("boom");
+				playdeck.shake(2);
+				playdeck.flash(RED);
+				playdeck.pop(W / 2, y - 20, "MISSED!", RED);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Toppled at ${built()}/${goal}`);
+				}, 650);
+			}
+
+			function win() {
+				state = "won";
+				cur = null;
+				score += 40 + perfects * 5;
+				const top = stack[stack.length - 1];
+				playdeck.flash(ACCENT);
+				playdeck.sfx("good");
+				playdeck.burst(top.x + top.w / 2, layerY(built()), ACCENT, 30);
+				playdeck.pop(W / 2, layerY(built()) - 40, "TOPPED OUT!", ACCENT);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						perfects ? `Topped out · ${perfects} perfect` : "Topped out",
+					);
+				}, 500);
+			}
+
+			canvas.addEventListener("pointerdown", drop);
+			document.addEventListener("keydown", (e) => {
+				if (e.code !== "Space" && e.code !== "Enter" && e.code !== "ArrowDown")
+					return;
+				e.preventDefault();
+				if (!e.repeat) drop();
+			});
+
+			function step(dt) {
+				if (cur && state === "run") {
+					cur.x += cur.dir * speed * dt;
+					// the slider overshoots the tower a little on each side
+					const lo = -cur.w * 0.15,
+						hi = W - cur.w * 0.85;
+					if (cur.x > hi) {
+						cur.x = hi;
+						cur.dir = -1;
+					} else if (cur.x < lo) {
+						cur.x = lo;
+						cur.dir = 1;
+					}
+				}
+				// camera keeps the top of the tower around the upper middle
+				const want = Math.max(
+					0,
+					(stack.length + 1) * BLOCK_H - (H - 120) * 0.5,
+				);
+				cam += (want - cam) * Math.min(dt * 6, 1);
+				for (const b of stack) b.flash = Math.max(b.flash - dt * 2.5, 0);
+				for (const d of debris) {
+					d.vy += 1600 * dt;
+					d.y += d.vy * dt;
+					d.rot += d.vr * dt;
+				}
+				debris = debris.filter((d) => d.y < H + 80);
+			}
+
+			function block(x, y, w, h, color) {
+				ctx.fillStyle = color;
+				ctx.beginPath();
+				ctx.roundRect(x, y, w, h, 6);
+				ctx.fill();
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				// goal line
+				const gy = layerY(goal) - 2;
+				if (gy > 60) {
+					ctx.setLineDash([8, 8]);
+					ctx.strokeStyle = GOLD;
+					ctx.globalAlpha = 0.6;
+					ctx.lineWidth = 2;
+					ctx.beginPath();
+					ctx.moveTo(0, gy);
+					ctx.lineTo(W, gy);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.globalAlpha = 1;
+				}
+				stack.forEach((b, i) => {
+					const y = layerY(i);
+					if (y < -BLOCK_H || y > H) return;
+					block(
+						b.x,
+						y,
+						b.w,
+						BLOCK_H - 3,
+						`hsl(${hue(i)} 75% ${i % 2 ? 48 : 42}%)`,
+					);
+					if (b.flash > 0) {
+						ctx.globalAlpha = b.flash;
+						block(b.x - 2, y - 2, b.w + 4, BLOCK_H + 1, "#ffffff");
+						ctx.globalAlpha = 1;
+					}
+				});
+				for (const d of debris) {
+					ctx.save();
+					ctx.translate(d.x + d.w / 2, d.y + BLOCK_H / 2);
+					ctx.rotate(d.rot);
+					ctx.globalAlpha = 0.85;
+					block(
+						-d.w / 2,
+						-BLOCK_H / 2,
+						d.w,
+						BLOCK_H - 3,
+						`hsl(${d.hue} 75% 45%)`,
+					);
+					ctx.restore();
+				}
+				if (cur) {
+					const y = layerY(stack.length);
+					const top = stack[stack.length - 1];
+					// faint guide where a perfect drop would land
+					ctx.strokeStyle = ink;
+					ctx.globalAlpha = 0.25;
+					ctx.lineWidth = 1.5;
+					ctx.strokeRect(top.x, y, top.w, BLOCK_H - 3);
+					ctx.globalAlpha = 1;
+					ctx.save();
+					ctx.shadowColor = ACCENT;
+					ctx.shadowBlur = 16 + combo * 4;
+					block(
+						cur.x,
+						y,
+						cur.w,
+						BLOCK_H - 3,
+						`hsl(${hue(stack.length)} 90% 60%)`,
+					);
+					ctx.restore();
+				}
+			}
+		</script>
+	</body>
+</html>

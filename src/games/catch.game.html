@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Star Catch" />
+		<meta name="playdeck:emoji" content="🧺" />
+		<meta
+			name="playdeck:desc"
+			content="Catch the falling stars. Not the bombs."
+		/>
+		<meta name="playdeck:order" content="16" />
+		<meta name="playdeck:accent" content="#ffb13d" />
+		<meta
+			name="playdeck:instructions"
+			content="Drag (or arrow keys) to move the basket. Catch the star quota — golden stars count triple, catch streaks multiply your points. Miss three stars (or catch one bomb) and it's over."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const DURATION = 25;
+			const BASKET_W = 88;
+			const MAX_MISSES = 3;
+			const GOLD = "#ffd24d";
+
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let state = "idle"; // idle | run | dying | won
+			let px = 0.5; // basket x as a fraction of the width
+			let items = []; // { x, y, kind: "star" | "gold" | "bomb", spin, passed }
+			let t = 0,
+				sinceSpawn = 0,
+				baseFall = 260,
+				baseSpawn = 0.86,
+				bombChance = 0.1;
+			let caught = 0,
+				goal = 12,
+				missed = 0,
+				score = 0,
+				streak = 0,
+				hudAt = 0;
+			let keyDir = 0;
+			let blastAt = null; // expanding ring drawn after a bomb catch
+			let raf = 0,
+				endTimer = 0;
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			// the basket sits above the caption zone
+			const basketY = () => H - 150;
+			const mult = () => Math.min(1 + Math.floor(streak / 3), 4);
+
+			function hud(now, force) {
+				if (!force && now - hudAt < 150) return;
+				hudAt = now;
+				const left = Math.max(DURATION - t, 0);
+				playdeck.hud({
+					chips: [
+						`⭐ ${caught}/${goal}`,
+						`💔 ${missed}/${MAX_MISSES}`,
+						mult() > 1
+							? `×${mult()} · ${Math.ceil(left)}s`
+							: `${Math.ceil(left)}s`,
+					],
+					progress: left / DURATION,
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				const lv = Math.min(level, 12);
+				goal = Math.min(10 + lv * 2, 30);
+				baseFall = (Math.max(H, 500) / 3) * (1 + lv * 0.07);
+				baseSpawn = Math.max(0.9 - lv * 0.04, 0.42);
+				bombChance = Math.min(0.08 + (lv - 1) * 0.04, 0.3);
+				px = 0.5;
+				items = [];
+				t = 0;
+				sinceSpawn = 0.5; // first star arrives almost immediately
+				caught = 0;
+				missed = 0;
+				score = 0;
+				streak = 0;
+				keyDir = 0;
+				blastAt = null;
+				state = "run";
+				hud(0, true);
+
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt, now);
+					draw(now);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function spawn() {
+				const r = Math.random();
+				const kind =
+					r < bombChance ? "bomb" : r < bombChance + 0.08 ? "gold" : "star";
+				items.push({
+					x: 30 + Math.random() * (W - 60),
+					y: 70,
+					kind,
+					spin: Math.random() * Math.PI * 2,
+					passed: false,
+				});
+			}
+
+			function step(dt, now) {
+				if (state !== "run") return;
+				t += dt;
+				if (keyDir)
+					px = Math.min(
+						Math.max(px + (keyDir * dt * 1.3 * Math.min(W, 600)) / W, 0.05),
+						0.95,
+					);
+
+				// stars fall faster as the clock runs down
+				const ramp = 1 + 0.4 * Math.min(t / 20, 1);
+				sinceSpawn += dt;
+				if (sinceSpawn >= baseSpawn / ramp) {
+					sinceSpawn = 0;
+					spawn();
+				}
+
+				const bx = px * W,
+					by = basketY();
+				const keep = [];
+				for (const it of items) {
+					// golden stars drop a touch faster — they're a reward for hustle
+					it.y += baseFall * ramp * (it.kind === "gold" ? 1.2 : 1) * dt;
+					it.spin += dt * 3;
+					const inBasket =
+						it.y > by - 26 &&
+						it.y < by + 14 &&
+						Math.abs(it.x - bx) < BASKET_W / 2;
+					if (inBasket) {
+						if (it.kind === "bomb") return die(now, it.x, it.y);
+						catchStar(it, now);
+						if (state !== "run") return;
+						continue;
+					}
+					// a bomb that just slipped past the basket edge
+					if (it.kind === "bomb" && !it.passed && it.y > by + 14) {
+						it.passed = true;
+						if (Math.abs(it.x - bx) < BASKET_W / 2 + 26) {
+							score += 5;
+							playdeck.pop(bx, by - 50, "CLOSE! +5", "#ff8a1e");
+							playdeck.sfx("pop");
+						}
+					}
+					if (it.y > H + 30) {
+						if (it.kind === "star") {
+							missed += 1;
+							streak = 0;
+							playdeck.sfx("bad");
+							playdeck.pop(
+								Math.min(Math.max(it.x, 40), W - 40),
+								H - 110,
+								"MISS",
+								"#ff4d6d",
+							);
+							hud(now, true);
+							if (missed >= MAX_MISSES) return lose(now, "Too many misses");
+						}
+						continue;
+					}
+					keep.push(it);
+				}
+				items = keep;
+
+				hud(now);
+				if (t >= DURATION) lose(now, `Time's up at ${caught}/${goal}`);
+			}
+
+			function catchStar(it, now) {
+				streak += 1;
+				const m = mult();
+				const gold = it.kind === "gold";
+				const pts = (gold ? 50 : 10) * m;
+				score += pts;
+				caught += gold ? 3 : 1;
+				const by = basketY();
+				playdeck.burst(it.x, by - 10, gold ? GOLD : "#ffb13d", gold ? 28 : 10);
+				playdeck.pop(it.x, by - 40, `+${pts}`, gold ? GOLD : "#ffb13d");
+				if (gold) {
+					playdeck.pop(it.x, by - 70, "GOLDEN ×3", GOLD);
+					playdeck.shake(1);
+				}
+				// announce each new multiplier step
+				if (streak % 3 === 0 && m > 1)
+					playdeck.pop(W / 2, H * 0.4, `STREAK ×${m}`, "#ff5cd0");
+				if (m > 1) playdeck.sfx("merge", 2 ** Math.min(m + 1, 11));
+				else playdeck.sfx("collect");
+				hud(now, true);
+				if (caught >= goal) win(now);
+			}
+
+			function die(now, x, y) {
+				state = "dying";
+				items = items.filter((i) => i.kind !== "bomb" || Math.abs(i.y - y) > 1);
+				playdeck.sfx("boom");
+				playdeck.burst(x, y, "#ff8a1e", 30);
+				playdeck.burst(x, y, "#ff4d6d", 20);
+				playdeck.shake(3);
+				playdeck.flash("#ff4d6d");
+				blastAt = { x, y, t: now };
+				hud(now, true);
+				endTimer = setTimeout(() => finish(false, "Caught a bomb"), 800);
+			}
+
+			function lose(now, note) {
+				state = "dying";
+				playdeck.shake(2);
+				hud(now, true);
+				endTimer = setTimeout(() => finish(false, note), 650);
+			}
+
+			function win(now) {
+				state = "won";
+				playdeck.flash("#3dffa0");
+				playdeck.sfx("good");
+				playdeck.burst(px * W, basketY(), "#3dffa0", 40);
+				playdeck.pop(W / 2, H * 0.4, "QUOTA!", "#3dffa0");
+				const timeBonus = Math.ceil(Math.max(DURATION - t, 0)) * 2;
+				score += timeBonus;
+				endTimer = setTimeout(
+					() => finish(true, `${Math.ceil(DURATION - t)}s to spare`),
+					600,
+				);
+			}
+
+			function finish(won, note) {
+				state = "idle";
+				cancelAnimationFrame(raf);
+				playdeck.end(won, score, note);
+			}
+
+			function drawStar(x, y, r, spin, fill) {
+				ctx.beginPath();
+				for (let i = 0; i < 10; i++) {
+					const a = spin + (i * Math.PI) / 5 - Math.PI / 2;
+					const rr = i % 2 ? r * 0.45 : r;
+					ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+				}
+				ctx.closePath();
+				ctx.fillStyle = fill;
+				ctx.fill();
+			}
+
+			function draw(now) {
+				ctx.clearRect(0, 0, W, H);
+				for (const it of items) {
+					if (it.kind === "bomb") {
+						ctx.font = "28px system-ui";
+						ctx.textAlign = "center";
+						ctx.textBaseline = "middle";
+						ctx.fillText("💣", it.x, it.y);
+					} else {
+						const gold = it.kind === "gold";
+						ctx.save();
+						ctx.shadowColor = gold ? GOLD : "#ffb13d";
+						ctx.shadowBlur = gold ? 24 : 10;
+						drawStar(
+							it.x,
+							it.y,
+							gold ? 17 : 13,
+							it.spin * (gold ? 1.6 : 0.4),
+							gold ? GOLD : "#ffc861",
+						);
+						ctx.restore();
+					}
+				}
+				const bx = px * W,
+					by = basketY();
+				if (state !== "dying" || !blastAt) {
+					ctx.font = "44px system-ui";
+					ctx.textAlign = "center";
+					ctx.textBaseline = "middle";
+					ctx.fillText("🧺", bx, by);
+				}
+				if (blastAt) {
+					const k = (now - blastAt.t) / 500;
+					if (k < 1) {
+						ctx.strokeStyle = `rgba(255,138,30,${1 - k})`;
+						ctx.lineWidth = 6 * (1 - k) + 1;
+						ctx.beginPath();
+						ctx.arc(blastAt.x, blastAt.y, 20 + k * 120, 0, Math.PI * 2);
+						ctx.stroke();
+					}
+				}
+			}
+
+			// drag anywhere: the basket follows the finger horizontally
+			function move(e) {
+				if (state !== "run" || !playdeck.running) return;
+				px = Math.min(Math.max(e.clientX / W, 0.05), 0.95);
+			}
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running) return;
+				canvas.setPointerCapture(e.pointerId);
+				move(e);
+			});
+			canvas.addEventListener("pointermove", move);
+
+			addEventListener("keydown", (e) => {
+				if (e.key === "ArrowLeft" || e.key === "a") keyDir = -1;
+				else if (e.key === "ArrowRight" || e.key === "d") keyDir = 1;
+				else return;
+				e.preventDefault();
+			});
+			addEventListener("keyup", (e) => {
+				if ((e.key === "ArrowLeft" || e.key === "a") && keyDir < 0) keyDir = 0;
+				if ((e.key === "ArrowRight" || e.key === "d") && keyDir > 0) keyDir = 0;
+			});
+		</script>
+	</body>
+</html>

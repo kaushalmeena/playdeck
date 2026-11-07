@@ -1,0 +1,299 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Keep Up" />
+		<meta name="playdeck:emoji" content="🏓" />
+		<meta
+			name="playdeck:desc"
+			content="Don't let the ball drop. It keeps getting faster."
+		/>
+		<meta name="playdeck:order" content="25" />
+		<meta name="playdeck:accent" content="#4d9fff" />
+		<meta
+			name="playdeck:instructions"
+			content="Drag (or use the arrow keys) to move the paddle and keep the ball in the air. Every bounce counts — and speeds it up. Hit it with the middle of the paddle for a SWEET bonus."
+		/>
+		<style>
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+				overflow: hidden;
+				touch-action: none;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const BALL_R = 10,
+				PADDLE_H = 13,
+				TOP = 90, // ceiling sits under the HUD
+				BLUE = "#4d9fff",
+				GOLD = "#ffd24d",
+				RED = "#ff4d6d";
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let state = "idle",
+				raf = 0,
+				endTimer = 0;
+			let goal = 0,
+				bounces = 0,
+				score = 0,
+				sweets = 0,
+				maxSpeed = 0;
+			let px = 0, // paddle centre x
+				padW = 96,
+				squash = 0; // paddle squash after a hit, 0..1
+			let bx = 0,
+				by = 0,
+				vx = 0,
+				vy = 0;
+			let trail = [],
+				keys = { left: false, right: false },
+				ink = "#eaeaf2";
+
+			const padY = () => H - 130; // bottom 90px stays clear for the caption
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				px = Math.min(Math.max(px, padW / 2), W - padW / 2);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			function hud() {
+				playdeck.hud({
+					chips: [`🏓 ${bounces}/${goal}`, sweets ? `🍬 ${sweets}` : "KEEP UP"],
+				});
+			}
+
+			// 0 at the start speed → 1 at the cap, drives colour and trail length
+			const heat = () =>
+				Math.max(0, Math.min((Math.abs(vy) - 480) / (maxSpeed - 480), 1));
+
+			playdeck.onStart(({ level }) => {
+				const L = Math.min(Math.max(level, 1), 12);
+				ink =
+					getComputedStyle(document.documentElement)
+						.getPropertyValue("--t-text")
+						.trim() || "#eaeaf2";
+				goal = Math.min(8 + L * 2, 26);
+				maxSpeed = Math.min(1000 + L * 40, 1300);
+				padW = Math.max(110 - L * 4, 76);
+				bounces = score = sweets = 0;
+				px = W / 2;
+				bx = W / 2;
+				by = H * 0.35;
+				const s = Math.min(480 + L * 20, 700);
+				// near-vertical first serve: it comes back onto the centred paddle, so
+				// a new player gets one free bounce to learn the feel
+				vx = (Math.random() < 0.5 ? -1 : 1) * s * 0.06;
+				vy = -s; // serve upward so there is a beat to get under it
+				trail = [];
+				squash = 0;
+				state = "run";
+				hud();
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					// substeps keep a fast ball from tunnelling through the paddle
+					const n = Math.ceil(dt / 0.008);
+					for (let i = 0; i < n; i++) step(dt / n);
+					trail.push({ x: bx, y: by });
+					if (trail.length > 6 + Math.round(heat() * 12)) trail.shift();
+					squash = Math.max(squash - dt * 5, 0);
+					draw();
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function movePaddle(x) {
+				if (!playdeck.running || state !== "run") return;
+				px = Math.min(Math.max(x, padW / 2), W - padW / 2);
+			}
+			canvas.addEventListener("pointerdown", (e) => {
+				canvas.setPointerCapture(e.pointerId);
+				movePaddle(e.clientX);
+			});
+			canvas.addEventListener("pointermove", (e) => movePaddle(e.clientX));
+			addEventListener("keydown", (e) => {
+				if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+				else if (e.code === "ArrowRight" || e.code === "KeyD")
+					keys.right = true;
+				else return;
+				e.preventDefault();
+			});
+			addEventListener("keyup", (e) => {
+				if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+				if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+			});
+
+			function step(dt) {
+				if (state === "run" && (keys.left || keys.right)) {
+					movePaddle(
+						px + ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * 700 * dt,
+					);
+				}
+				if (state === "won") return;
+				const prevY = by;
+				bx += vx * dt;
+				by += vy * dt;
+				if (bx < BALL_R) {
+					bx = BALL_R;
+					vx = Math.abs(vx);
+				} else if (bx > W - BALL_R) {
+					bx = W - BALL_R;
+					vx = -Math.abs(vx);
+				}
+				if (by < TOP + BALL_R) {
+					by = TOP + BALL_R;
+					vy = Math.abs(vy);
+				}
+				if (state !== "run") return;
+
+				const py = padY();
+				const surface = py - BALL_R;
+				if (
+					vy > 0 &&
+					prevY <= surface &&
+					by >= surface &&
+					Math.abs(bx - px) < padW / 2 + BALL_R * 0.8
+				) {
+					by = surface;
+					paddleHit();
+				} else if (by > py + 30) {
+					drop();
+				}
+			}
+
+			function paddleHit() {
+				const off = Math.max(-1, Math.min(1, (bx - px) / (padW / 2)));
+				const speed = Math.min(Math.abs(vy) * 1.05, maxSpeed);
+				vy = -speed;
+				vx = off * speed * 0.85 + vx * 0.15;
+				bounces += 1;
+				squash = 1;
+				const sweet = Math.abs(off) < 0.22;
+				let pts = 8 + bounces;
+				if (sweet) {
+					sweets += 1;
+					pts += 10;
+				}
+				score += pts;
+				// pitch climbs with every bounce
+				playdeck.sfx("merge", 2 ** Math.min(1 + bounces, 10));
+				const color = sweet ? GOLD : ballColor();
+				playdeck.burst(bx, by + BALL_R, color, sweet ? 16 : 8);
+				playdeck.pop(bx, by - 24, sweet ? `SWEET +${pts}` : `+${pts}`, color);
+				if (bounces > 0 && bounces % 5 === 0 && bounces < goal) {
+					playdeck.pop(W / 2, H * 0.4, "FASTER!", RED);
+				}
+				hud();
+				if (bounces >= goal) win();
+			}
+
+			function drop() {
+				state = "dying";
+				playdeck.sfx("boom");
+				playdeck.shake(2);
+				playdeck.burst(bx, padY() + 20, RED, 26);
+				playdeck.pop(bx, padY() - 10, "DROPPED", RED);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(false, score, `Dropped at ${bounces}/${goal}`);
+				}, 550);
+			}
+
+			function win() {
+				state = "won";
+				score += 40 + sweets * 4;
+				playdeck.flash(BLUE);
+				playdeck.sfx("good");
+				playdeck.burst(bx, by, GOLD, 30);
+				playdeck.pop(W / 2, H * 0.4, "UNSTOPPABLE!", GOLD);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					playdeck.end(
+						true,
+						score,
+						sweets ? `Kept it up · ${sweets} sweet` : "Kept it up",
+					);
+				}, 450);
+			}
+
+			// blue at the start, through violet, to hot pink at top speed
+			function ballColor() {
+				return `hsl(${215 + heat() * 120} 100% 62%)`;
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				const color = ballColor();
+				// trail
+				trail.forEach((t, i) => {
+					const k = (i + 1) / trail.length;
+					ctx.globalAlpha = 0.45 * k;
+					ctx.fillStyle = color;
+					ctx.beginPath();
+					ctx.arc(t.x, t.y, BALL_R * (0.35 + 0.6 * k), 0, Math.PI * 2);
+					ctx.fill();
+				});
+				ctx.globalAlpha = 1;
+				// paddle, with a small squash on contact and a sweet-spot mark
+				const py = padY();
+				const w = padW * (1 + squash * 0.12),
+					h = PADDLE_H * (1 - squash * 0.3);
+				ctx.fillStyle = ink;
+				ctx.beginPath();
+				ctx.roundRect(px - w / 2, py + (PADDLE_H - h), w, h, 7);
+				ctx.fill();
+				ctx.fillStyle = GOLD;
+				ctx.globalAlpha = 0.85;
+				ctx.fillRect(
+					px - padW * 0.11,
+					py + (PADDLE_H - h) + h / 2 - 1.5,
+					padW * 0.22,
+					3,
+				);
+				ctx.globalAlpha = 1;
+				// ball
+				if (state === "run" || state === "won" || by < H) {
+					ctx.save();
+					ctx.shadowColor = color;
+					ctx.shadowBlur = 18 + heat() * 14;
+					ctx.fillStyle = color;
+					ctx.beginPath();
+					ctx.arc(bx, by, BALL_R, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.restore();
+				}
+			}
+		</script>
+	</body>
+</html>

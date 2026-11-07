@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Chain Burst" />
+		<meta name="playdeck:emoji" content="💥" />
+		<meta
+			name="playdeck:desc"
+			content="One tap. Start the chain. Watch it go."
+		/>
+		<meta name="playdeck:order" content="1" />
+		<meta name="playdeck:accent" content="#ff5cd0" />
+		<meta
+			name="playdeck:instructions"
+			content="You get one tap. It sets off a blast — every orb it touches blows up too. Catch the quota in one chain."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const COLORS = ["#ff5cd0", "#00e5ff", "#ffd24d", "#3dffa0", "#7c5cff"];
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let orbs = [],
+				blasts = [],
+				raf = 0,
+				state = "idle";
+			let goal = 0,
+				caught = 0,
+				tapped = false,
+				settleAt = 0;
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			function hud() {
+				playdeck.hud({
+					chips: [`💥 ${caught}/${goal}`, tapped ? "CHAIN!" : "1 TAP"],
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				const count = 44 + Math.min(level, 10);
+				goal = Math.min(10 + level * 2, count - 6);
+				caught = 0;
+				tapped = false;
+				blasts = [];
+				orbs = Array.from({ length: count }, () => {
+					const a = Math.random() * Math.PI * 2;
+					const v = 40 + Math.random() * (30 + level * 6);
+					return {
+						x: 30 + Math.random() * (W - 60),
+						y: 110 + Math.random() * (H - 220),
+						vx: Math.cos(a) * v,
+						vy: Math.sin(a) * v,
+						r: 7 + Math.random() * 3,
+						c: COLORS[(Math.random() * COLORS.length) | 0],
+						dead: false,
+					};
+				});
+				state = "run";
+				hud();
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt, now);
+					draw();
+					if (state === "run") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function blast(x, y, c, depth) {
+				blasts.push({
+					x,
+					y,
+					c,
+					r: 0,
+					max: 58 + Math.min(depth, 10) * 1.5,
+					t: 0,
+				});
+			}
+
+			canvas.addEventListener("pointerdown", (e) => {
+				if (state !== "run" || tapped) return;
+				tapped = true;
+				blast(e.clientX, e.clientY, "#ffffff", 0);
+				playdeck.sfx("boom");
+				playdeck.shake(1);
+				hud();
+			});
+
+			function step(dt, now) {
+				for (const o of orbs) {
+					if (o.dead) continue;
+					o.x += o.vx * dt;
+					o.y += o.vy * dt;
+					if (o.x < o.r || o.x > W - o.r) o.vx *= -1;
+					if (o.y < 90 + o.r || o.y > H - 90 - o.r) o.vy *= -1;
+				}
+				for (const b of blasts) {
+					b.t += dt;
+					// grow, hold, shrink — about a second per blast
+					b.r =
+						b.t < 0.25
+							? (b.t / 0.25) * b.max
+							: b.t < 0.75
+								? b.max
+								: Math.max(b.max * (1 - (b.t - 0.75) / 0.3), 0);
+					if (b.t > 1.05) continue;
+					for (const o of orbs) {
+						if (o.dead) continue;
+						const dx = o.x - b.x,
+							dy = o.y - b.y;
+						if (dx * dx + dy * dy < (b.r + o.r) * (b.r + o.r)) {
+							o.dead = true;
+							caught += 1;
+							blast(o.x, o.y, o.c, caught);
+							playdeck.burst(o.x, o.y, o.c, 8);
+							playdeck.pop(o.x, o.y - 14, `+${caught}`, o.c);
+							playdeck.sfx("merge", 2 ** Math.min(1 + caught, 11));
+							if (caught === goal) {
+								playdeck.flash(o.c);
+								playdeck.sfx("good");
+							}
+							hud();
+						}
+					}
+				}
+				blasts = blasts.filter((b) => b.t <= 1.05);
+				if (tapped && blasts.length === 0) {
+					if (!settleAt) settleAt = now;
+					if (now - settleAt > 250) finish();
+				} else settleAt = 0;
+			}
+
+			function finish() {
+				state = "idle";
+				const won = caught >= goal;
+				const bonus = Math.max(caught - goal, 0) * 10;
+				playdeck.end(
+					won,
+					caught * 6 + (won ? 40 + bonus : 0),
+					won
+						? bonus
+							? `Overkill ×${caught - goal}`
+							: "Chain complete"
+						: `Chain fizzled at ${caught}`,
+				);
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				for (const b of blasts) {
+					ctx.globalAlpha = 0.25;
+					ctx.fillStyle = b.c;
+					ctx.beginPath();
+					ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.globalAlpha = 0.9;
+					ctx.strokeStyle = b.c;
+					ctx.lineWidth = 2;
+					ctx.stroke();
+				}
+				ctx.globalAlpha = 1;
+				for (const o of orbs) {
+					if (o.dead) continue;
+					ctx.shadowColor = o.c;
+					ctx.shadowBlur = 14;
+					ctx.fillStyle = o.c;
+					ctx.beginPath();
+					ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+					ctx.fill();
+				}
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>

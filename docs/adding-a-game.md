@@ -13,6 +13,18 @@ is gone. There is no manifest to edit and no app code to touch.
 
 That is the whole workflow — the dev server picks the file up immediately.
 
+## Two formats
+
+| Format         | File                       | Best for                                                   |
+| -------------- | -------------------------- | ---------------------------------------------------------- |
+| React          | `src/games/<id>.game.tsx`  | Games that want the kit hooks and the app's components     |
+| HTML (plug-in) | `src/games/<id>.game.html` | Any self-contained page — canvas, vanilla JS, a ported toy |
+
+Every game that ships today is HTML — start there. Both formats appear in the
+same feed, score the same way and get the same chrome.
+The rest of this page covers the React contract; the HTML one is
+[below](#html-games).
+
 ## How discovery works
 
 [`src/games/registry.ts`](../src/games/registry.ts) globs `./*.game.tsx` with
@@ -43,14 +55,14 @@ export default function MyGame({ level, active, onEnd, onPlayingChange }: GamePr
 
 ### `meta`
 
-| Field          | Purpose                                                     |
-| -------------- | ----------------------------------------------------------- |
-| `title`        | Shown on the card and the start overlay                      |
-| `emoji`        | Card icon                                                    |
-| `desc`         | One line under the title on the card                         |
-| `order`        | Canonical position — drives unlock rank, not display order   |
-| `accent`       | Tints the overlay, progress bar and level chip               |
-| `instructions` | How to play, shown before the first run                      |
+| Field          | Purpose                                                    |
+| -------------- | ---------------------------------------------------------- |
+| `title`        | Shown on the card and the start overlay                    |
+| `emoji`        | Card icon                                                  |
+| `desc`         | One line under the title on the card                       |
+| `order`        | Canonical position — drives unlock rank, not display order |
+| `accent`       | Tints the overlay, progress bar and level chip             |
+| `instructions` | How to play, shown before the first run                    |
 
 `order` is the game's rank for [progression
 unlocks](./architecture.md#progression). The feed itself is shuffled each
@@ -59,12 +71,12 @@ becomes playable.
 
 ### Props
 
-| Prop              | Meaning                                                        |
-| ----------------- | -------------------------------------------------------------- |
-| `level`           | This player's level for your game — scale difficulty from it    |
-| `active`          | `false` once the card scrolls away; abandon any live run        |
-| `onEnd`           | Report a finished run                                           |
-| `onPlayingChange` | Tell the feed whether a run owns the screen                     |
+| Prop              | Meaning                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| `level`           | This player's level for your game — scale difficulty from it |
+| `active`          | `false` once the card scrolls away; abandon any live run     |
+| `onEnd`           | Report a finished run                                        |
+| `onPlayingChange` | Tell the feed whether a run owns the screen                  |
 
 You rarely call the last two directly — `useRun` and `GameChrome` do it.
 
@@ -88,7 +100,7 @@ Wire the last part up in every game:
 
 ```tsx
 useEffect(() => {
-  if (!active && playing) cancel();
+	if (!active && playing) cancel();
 }, [active, playing, cancel]);
 ```
 
@@ -96,25 +108,25 @@ useEffect(() => {
 
 Wrap your play area in [`GameChrome`](../src/components/game/GameChrome.tsx).
 It draws the stage background, the in-run HUD chips, the optional progress
-bar, the quit button and the start/result overlay — which is what makes 32
+bar, the quit button and the start/result overlay — which is what makes dozens of
 independently written games look like one product.
 
 ```tsx
 <GameChrome
-  emoji={meta.emoji}
-  title={meta.title}
-  accent={meta.accent}
-  level={level}
-  instructions={meta.instructions}
-  playing={playing}
-  result={result}
-  chips={[`🍏 ${eaten}/${goal}`, `${score} PTS`]}
-  progress={timeLeft / total}
-  onPlay={start}
-  onQuit={cancel}
-  onPlayingChange={onPlayingChange}
+	emoji={meta.emoji}
+	title={meta.title}
+	accent={meta.accent}
+	level={level}
+	instructions={meta.instructions}
+	playing={playing}
+	result={result}
+	chips={[`🍏 ${eaten}/${goal}`, `${score} PTS`]}
+	progress={timeLeft / total}
+	onPlay={start}
+	onQuit={cancel}
+	onPlayingChange={onPlayingChange}
 >
-  {/* your play area */}
+	{/* your play area */}
 </GameChrome>
 ```
 
@@ -124,14 +136,14 @@ Pass `progress` only if your game is timed; omit it and the bar disappears.
 
 From [`src/games/kit.ts`](../src/games/kit.ts):
 
-| Helper                        | Use                                                        |
-| ----------------------------- | ----------------------------------------------------------- |
-| `useRun(onEnd)`               | The run lifecycle above                                     |
-| `useCountdown(playing, secs)` | A timer that restarts with each run; watch for `0`           |
-| `useTimers()`                 | `setTimeout`s that clear themselves on unmount               |
-| `useGameKeys(active, map)`    | Keyboard controls that beat the feed's paging                |
-| `sfx`                         | Sound cues for your game's actions                           |
-| `randInt` `shuffle` `pick`    | Small random helpers                                         |
+| Helper                        | Use                                                |
+| ----------------------------- | -------------------------------------------------- |
+| `useRun(onEnd)`               | The run lifecycle above                            |
+| `useCountdown(playing, secs)` | A timer that restarts with each run; watch for `0` |
+| `useTimers()`                 | `setTimeout`s that clear themselves on unmount     |
+| `useGameKeys(active, map)`    | Keyboard controls that beat the feed's paging      |
+| `sfx`                         | Sound cues for your game's actions                 |
+| `randInt` `shuffle` `pick`    | Small random helpers                               |
 
 ### Sound
 
@@ -140,16 +152,16 @@ and losing already make noise through the chrome and the scorer — what a game
 adds is feedback for its own actions:
 
 ```tsx
-sfx.good();        // a right answer, a matched pair, a cleared wave
-sfx.bad();         // a fumble that does not end the run
-sfx.step();        // a light move: tile flip, lane change, grid step
-sfx.collect();     // picking something up
-sfx.hit();         // landing a hit
-sfx.pop();         // a bubble popping
-sfx.boom();        // an explosion
-sfx.bounce();      // ball or paddle
-sfx.flap();        // thrust or jump
-sfx.merge(value);  // tiles combining — pitch rises with the value
+sfx.good(); // a right answer, a matched pair, a cleared wave
+sfx.bad(); // a fumble that does not end the run
+sfx.step(); // a light move: tile flip, lane change, grid step
+sfx.collect(); // picking something up
+sfx.hit(); // landing a hit
+sfx.pop(); // a bubble popping
+sfx.boom(); // an explosion
+sfx.bounce(); // ball or paddle
+sfx.flap(); // thrust or jump
+sfx.merge(value); // tiles combining — pitch rises with the value
 ```
 
 Every sound is synthesized, so there is nothing to download, and all of them
@@ -165,9 +177,9 @@ noticing that a run started.
 
 ```tsx
 useGameKeys(playing, {
-  ArrowLeft: () => turn(-1, 0),
-  ArrowRight: () => turn(1, 0),
-  Space: flap,
+	ArrowLeft: () => turn(-1, 0),
+	ArrowRight: () => turn(1, 0),
+	Space: flap,
 });
 ```
 
@@ -180,7 +192,7 @@ Scale everything off `level`, and floor it so high levels stay playable
 rather than impossible:
 
 ```ts
-const goal = 5 + level;                          // more to do
+const goal = 5 + level; // more to do
 const windowMs = Math.max(900 - level * 70, 250); // less time to do it
 ```
 
@@ -196,3 +208,63 @@ clamp your curve rather than letting it run away.
 - [ ] `cancel()` runs when `active` goes false
 - [ ] Keyboard controls go through `useGameKeys`
 - [ ] Wrapped in `GameChrome`
+
+## HTML games
+
+An HTML game is one self-contained `.game.html` page. Copy
+[`src/games/_template.game.html`](../src/games/_template.game.html), fill in
+the `playdeck:*` meta tags, and write the game in plain HTML/CSS/JS — no
+build step, no React, no imports from the app.
+
+```html
+<meta name="playdeck:title" content="Chain Burst" />
+<meta name="playdeck:emoji" content="💥" />
+<meta name="playdeck:desc" content="One tap. Start the chain." />
+<meta name="playdeck:order" content="33" />
+<meta name="playdeck:accent" content="#ff5cd0" />
+<meta name="playdeck:instructions" content="How to play." />
+```
+
+Only `title` is required; a missing one fails the build with the file name.
+
+### How it runs
+
+- [`plugins/html-game.ts`](../plugins/html-game.ts) parses the meta tags at
+  build time, so the feed lists the game without downloading it.
+- The page itself is a lazy `?raw` chunk, loaded when its card nears the
+  screen, and rendered in an `<iframe sandbox="allow-scripts">` — no
+  same-origin, so it cannot read the app's storage, cookies or DOM.
+- [`html/bridge.ts`](../src/games/html/bridge.ts) injects a small SDK as
+  `window.playdeck` ahead of the game's scripts and validates every message
+  coming back out of the frame.
+- [`html/HtmlGame.tsx`](../src/games/html/HtmlGame.tsx) wraps the frame in
+  `GameChrome`, so the overlay, HUD, quit button, scoring and sounds are the
+  same as for a React game.
+
+### The SDK
+
+| Call                                  | Does                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `playdeck.onStart(({ level }) => …)`  | A run begins — reset and go                                              |
+| `playdeck.onStop(() => …)`            | The player quit or scrolled away                                         |
+| `playdeck.end(won, score, note?)`     | Report the run; ignored after the first call                             |
+| `playdeck.hud({ chips, progress })`   | Up to 3 HUD chips and the 0..1 timer bar                                 |
+| `playdeck.sfx(name, arg?)`            | `good` `bad` `step` `pop` `hit` `boom` `bounce` `collect` `flap` `merge` |
+| `playdeck.tone(freq, dur)`            | A musical note (Hz, seconds), muted with the app                         |
+| `playdeck.pop(x, y, text, color?)`    | Floating score text at a point                                           |
+| `playdeck.burst(x, y, color?, n?)`    | Particle burst at a point                                                |
+| `playdeck.shake(strength?)`           | Screen shake, 0..3                                                       |
+| `playdeck.flash(color?)`              | Full-stage flash                                                         |
+| `playdeck.level` / `playdeck.running` | Current level / whether a run is live                                    |
+
+Coordinates are the frame's own client coordinates, which match the stage.
+Theme colours arrive as CSS variables (`--t-text`, `--t-accent`, …) and the
+page background is transparent so the shared stage shows through.
+
+### Checklist
+
+- [ ] File is `src/games/<name>.game.html`, no leading underscore
+- [ ] Has `playdeck:title` (and ideally every other `playdeck:*` tag)
+- [ ] Resets fully in `onStart` and stops its loop in `onStop`
+- [ ] Calls `playdeck.end(won, score)` once per run
+- [ ] Difficulty scales from `level` and is clamped

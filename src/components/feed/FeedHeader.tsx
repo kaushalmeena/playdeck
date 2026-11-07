@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+
 import { sfx } from "../../lib/sfx";
 import type { Theme } from "../../lib/theme";
 import { Logo } from "../Logo";

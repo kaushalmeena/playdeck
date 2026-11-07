@@ -1,0 +1,338 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Glow Flap" />
+		<meta name="playdeck:emoji" content="🚀" />
+		<meta name="playdeck:desc" content="Tap to thrust. Thread the gates." />
+		<meta name="playdeck:order" content="2" />
+		<meta name="playdeck:accent" content="#00b8d9" />
+		<meta
+			name="playdeck:instructions"
+			content="Tap (or space) to thrust upward. Thread every gate — grab the orb in the middle for a PERFECT bonus. The pace picks up with every gate, and the gaps get meaner each level."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+
+			// physics, in px and seconds (tuned from the old 60fps per-frame values)
+			const GRAVITY = 1500;
+			const THRUST = -440;
+			const RADIUS = 11;
+			const GATE_HW = 30; // half gate width
+			const ORB_R = 8;
+
+			let W = 0,
+				H = 0,
+				dpr = 1;
+			let state = "idle"; // idle | run | dying | won
+			let y = 0,
+				vel = 0,
+				armed = false,
+				hoverT = 0;
+			let gates = [],
+				trail = [],
+				shards = [];
+			let passed = 0,
+				goal = 6,
+				gap = 200,
+				speed = 140,
+				baseSpeed = 140,
+				score = 0,
+				perfects = 0;
+			let raf = 0,
+				endTimer = 0;
+			let ink = "#eaeaf2";
+
+			function themeVar(name, fallback) {
+				return (
+					getComputedStyle(document.documentElement)
+						.getPropertyValue(name)
+						.trim() || fallback
+				);
+			}
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			const shipX = () => Math.min(W * 0.28, 160);
+
+			function hud() {
+				playdeck.hud({
+					chips: [
+						`🚪 ${passed}/${goal}`,
+						`${score} PTS`,
+						...(perfects ? [`✨ ${perfects}`] : []),
+					],
+				});
+			}
+
+			playdeck.onStart(({ level }) => {
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ink = themeVar("--t-text", "#eaeaf2");
+				const lv = Math.min(level, 12);
+				goal = Math.min(6 + lv, 15);
+				gap = Math.max(215 - lv * 9, 128);
+				baseSpeed = speed = 138 + lv * 7;
+				y = H * 0.45;
+				vel = 0;
+				armed = false;
+				hoverT = 0;
+				passed = 0;
+				score = 0;
+				perfects = 0;
+				trail = [];
+				shards = [];
+				gates = [];
+				const m = 110; // keep gaps out of the HUD / caption zones
+				const spacing = Math.max(240, W * 0.45);
+				for (let i = 0; i < goal; i++) {
+					gates.push({
+						x: W + 100 + i * spacing,
+						cy: m + gap / 2 + Math.random() * Math.max(H - 2 * m - gap, 40),
+						passed: false,
+						orb: true,
+						closest: Infinity, // tightest clearance to an edge while inside
+					});
+				}
+				state = "run";
+				hud();
+
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw(now);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				clearTimeout(endTimer);
+				cancelAnimationFrame(raf);
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function flap() {
+				if (state !== "run" || !playdeck.running) return;
+				armed = true;
+				vel = THRUST;
+				playdeck.sfx("flap");
+			}
+
+			function step(dt) {
+				for (const s of shards) {
+					s.x += s.vx * dt;
+					s.y += s.vy * dt;
+					s.vy += 900 * dt;
+					s.life -= dt;
+				}
+				if (state !== "run") return;
+				const sx = shipX();
+
+				// before the first tap the ship idles in a gentle bob
+				if (!armed) {
+					hoverT += dt;
+					y = H * 0.45 + Math.sin(hoverT * 5) * 8;
+				} else {
+					vel += GRAVITY * dt;
+					y += vel * dt;
+				}
+				trail.unshift({ x: sx, y });
+				if (trail.length > 14) trail.pop();
+				for (const g of gates) g.x -= speed * dt;
+
+				if (y < RADIUS || y > H - RADIUS) return crash(sx);
+
+				for (const g of gates) {
+					const inside = Math.abs(g.x - sx) < GATE_HW + RADIUS;
+					if (inside) {
+						if (Math.abs(y - g.cy) > gap / 2 - RADIUS) return crash(sx);
+						g.closest = Math.min(
+							g.closest,
+							gap / 2 - RADIUS - Math.abs(y - g.cy),
+						);
+					}
+					// the orb in the middle of the gap
+					if (g.orb && Math.hypot(g.x - sx, g.cy - y) < RADIUS + ORB_R + 2) {
+						g.orb = false;
+						perfects += 1;
+						score += 15;
+						playdeck.sfx("collect");
+						playdeck.burst(g.x, g.cy, "#ffd24d", 18);
+						playdeck.pop(g.x, g.cy - 30, "PERFECT +15", "#ffd24d");
+						hud();
+					}
+					if (!g.passed && g.x + GATE_HW < sx - RADIUS) {
+						g.passed = true;
+						passed += 1;
+						score += 10;
+						playdeck.sfx("good");
+						playdeck.pop(sx, y - 26, "+10", "#3dffa0");
+						if (g.closest < 9) {
+							score += 5;
+							playdeck.pop(sx + 40, y, "CLOSE! +5", "#ff8a1e");
+							playdeck.sfx("pop");
+						}
+						// each gate cranks the pace a little
+						speed = Math.min(speed * 1.045, baseSpeed * 1.5);
+						hud();
+						if (passed >= goal) return win(sx);
+					}
+				}
+			}
+
+			function crash(sx) {
+				state = "dying";
+				// the ship breaks into glowing shards
+				shards = Array.from({ length: 16 }, () => {
+					const a = Math.random() * Math.PI * 2;
+					const v = 100 + Math.random() * 300;
+					return {
+						x: sx,
+						y,
+						vx: Math.cos(a) * v,
+						vy: Math.sin(a) * v - 150,
+						life: 0.7 + Math.random() * 0.4,
+					};
+				});
+				trail = [];
+				playdeck.sfx("boom");
+				playdeck.burst(sx, y, "#00e5ff", 30);
+				playdeck.shake(3);
+				playdeck.flash("#ff4d6d");
+				endTimer = setTimeout(() => {
+					state = "idle";
+					cancelAnimationFrame(raf);
+					playdeck.end(false, score, `Crashed at gate ${passed + 1}/${goal}`);
+				}, 800);
+			}
+
+			function win(sx) {
+				state = "won";
+				playdeck.flash("#3dffa0");
+				playdeck.sfx("good");
+				playdeck.burst(sx, y, "#3dffa0", 40);
+				playdeck.pop(W / 2, H / 2, "ALL CLEAR!", "#3dffa0");
+				endTimer = setTimeout(() => {
+					state = "idle";
+					cancelAnimationFrame(raf);
+					playdeck.end(
+						true,
+						score + 25,
+						perfects ? `${perfects} perfect orbs` : "Threaded every gate",
+					);
+				}, 650);
+			}
+
+			function draw(now) {
+				ctx.clearRect(0, 0, W, H);
+				const sx = shipX();
+				for (const g of gates) {
+					if (g.x < -80 || g.x > W + 120) continue;
+					ctx.save();
+					ctx.shadowColor = "#7c5cff";
+					ctx.shadowBlur = g.passed ? 0 : 14;
+					ctx.fillStyle = g.passed ? "rgba(61,255,160,.25)" : "#6c4fe8";
+					ctx.beginPath();
+					ctx.roundRect(g.x - GATE_HW, -8, GATE_HW * 2, g.cy - gap / 2 + 8, 10);
+					ctx.fill();
+					ctx.beginPath();
+					ctx.roundRect(
+						g.x - GATE_HW,
+						g.cy + gap / 2,
+						GATE_HW * 2,
+						H - (g.cy + gap / 2) + 8,
+						10,
+					);
+					ctx.fill();
+					ctx.restore();
+					if (g.orb) {
+						ctx.save();
+						ctx.shadowColor = "#ffd24d";
+						ctx.shadowBlur = 16;
+						ctx.fillStyle = "#ffd24d";
+						ctx.beginPath();
+						ctx.arc(
+							g.x,
+							g.cy,
+							ORB_R * (1 + Math.sin(now / 140) * 0.15),
+							0,
+							Math.PI * 2,
+						);
+						ctx.fill();
+						ctx.restore();
+					}
+				}
+				trail.forEach((t, i) => {
+					ctx.fillStyle = `rgba(0,229,255,${0.35 * (1 - i / 14)})`;
+					ctx.beginPath();
+					ctx.arc(
+						t.x - i * 3,
+						t.y,
+						Math.max(10 * (1 - i / 16), 1),
+						0,
+						Math.PI * 2,
+					);
+					ctx.fill();
+				});
+				if (state === "run" || state === "won") {
+					ctx.save();
+					ctx.shadowColor = "#00e5ff";
+					ctx.shadowBlur = 22;
+					ctx.fillStyle = ink;
+					ctx.beginPath();
+					ctx.arc(sx, y, RADIUS, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.restore();
+				}
+				for (const s of shards) {
+					if (s.life <= 0) continue;
+					ctx.globalAlpha = Math.min(s.life * 1.4, 1);
+					ctx.fillStyle = Math.random() < 0.5 ? "#00e5ff" : ink;
+					ctx.fillRect(s.x - 3, s.y - 3, 6, 6);
+				}
+				ctx.globalAlpha = 1;
+				// "tap to fly" hint while idling before the first thrust
+				if (state === "run" && !armed) {
+					ctx.fillStyle = ink;
+					ctx.globalAlpha = 0.6 + Math.sin(now / 200) * 0.3;
+					ctx.font = "800 14px system-ui, sans-serif";
+					ctx.textAlign = "center";
+					ctx.fillText("TAP TO FLY", sx, y + 38);
+					ctx.globalAlpha = 1;
+				}
+			}
+
+			canvas.addEventListener("pointerdown", flap);
+			addEventListener("keydown", (e) => {
+				if (e.code === "Space" || e.key === "ArrowUp" || e.key === "w") {
+					e.preventDefault();
+					if (!e.repeat) flap();
+				}
+			});
+		</script>
+	</body>
+</html>

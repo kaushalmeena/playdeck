@@ -1,0 +1,594 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Tile Rush" />
+		<meta name="playdeck:emoji" content="🎹" />
+		<meta
+			name="playdeck:desc"
+			content="Glowing tiles rain down four lanes. Tap them all, play the tune."
+		/>
+		<meta name="playdeck:order" content="14" />
+		<meta name="playdeck:accent" content="#7c5cff" />
+		<meta
+			name="playdeck:instructions"
+			content="Tap every tile before it slides past the glowing line (or use D F J K). Long tiles: press and hold until they end. Tapping an empty lane or missing a tile ends the run."
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+			#combo {
+				position: fixed;
+				left: 50%;
+				top: 21%;
+				transform: translate(-50%, -50%);
+				font:
+					900 68px/1 system-ui,
+					sans-serif;
+				color: var(--t-text, #fff);
+				text-align: center;
+				pointer-events: none;
+				opacity: 0;
+				transition: opacity 0.15s;
+				text-shadow: 0 0 24px rgba(124, 92, 255, 0.7);
+			}
+			#combo small {
+				display: block;
+				font-size: 11px;
+				font-weight: 800;
+				letter-spacing: 0.3em;
+				opacity: 0.6;
+				margin-top: 6px;
+			}
+			#combo.bump {
+				animation: bump 0.16s ease-out;
+			}
+			@keyframes bump {
+				from {
+					transform: translate(-50%, -50%) scale(1.3);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<div id="combo"></div>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const comboEl = document.getElementById("combo");
+			const ACCENT = "#7c5cff",
+				BAD = "#ff4d6d",
+				GOLD = "#ffd24d";
+			const LANE_COLORS = ["#7c5cff", "#00e5ff", "#ff5cd0", "#3dffa0"];
+			const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
+			const KEY_LABELS = ["D", "F", "J", "K"];
+
+			// A little pentatonic tune. `merge` maps its value to a pitch of
+			// 300 + 90·(log2(value) − 1) Hz, so we invert that to hit real notes.
+			const NOTES = [392, 440, 523, 587, 659, 784, 880, 1047];
+			const MELODY = [
+				2, 3, 4, 2, 4, 5, 4, 3, 2, 3, 4, 5, 6, 5, 4, 3, 4, 5, 6, 7, 6, 5, 4, 2,
+				3, 4, 3, 2, 1, 0, 1, 2,
+			];
+			const noteValue = (f) => 2 ** ((f - 300) / 90 + 1);
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				bx = 0, // board left edge
+				bw = 0, // board width
+				laneW = 0,
+				tileH = 0, // px per row
+				hitY = 0; // the line a tile must not fully pass
+			let raf = 0,
+				state = "idle",
+				endTimer = 0;
+			let textCol = "#eaeaf2",
+				lineCol = "rgba(255,255,255,0.15)";
+
+			// Run state. Tile positions live in "rows" so a resize never breaks them:
+			// `s` is how many rows have scrolled by; a tile occupies [start, start+len).
+			let tiles = [],
+				s = 0,
+				t = 0, // seconds since the scroll started
+				idle = 0, // seconds waiting for the first tap
+				started = false,
+				rate0 = 2,
+				ramp = 0.07,
+				quota = 40,
+				holdChance = 0,
+				nextStart = 0,
+				lastLane = -1,
+				spawned = 0,
+				cleared = 0,
+				combo = 0,
+				maxCombo = 0,
+				score = 0,
+				noteIdx = 0,
+				hudT = 0,
+				hudDirty = false,
+				sparkT = 0,
+				failTile = null,
+				failS = 0,
+				badMark = null;
+			const laneFlash = [0, 0, 0, 0];
+			const holds = new Map(); // pointer id / key code -> held tile
+
+			function readTheme() {
+				const css = getComputedStyle(document.documentElement);
+				textCol = css.getPropertyValue("--t-text").trim() || "#eaeaf2";
+				lineCol = css.getPropertyValue("--t-line").trim() || lineCol;
+			}
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				bw = Math.min(W - 32, 440);
+				bx = (W - bw) / 2;
+				laneW = bw / 4;
+				hitY = H - 100; // keeps the line above the bottom caption area
+				tileH = Math.max(80, Math.min((hitY - 40) / 4.2, 160));
+				if (state !== "run" && state !== "dying") draw();
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			// Screen-space edges of a tile.
+			function bottomOf(tile) {
+				return hitY - 0.25 * tileH + (s - tile.start) * tileH;
+			}
+			function topOf(tile) {
+				return bottomOf(tile) - tile.len * tileH;
+			}
+			function rate() {
+				return rate0 + ramp * t;
+			}
+
+			function hud(force) {
+				const now = performance.now();
+				if (!force && now - hudT < 120) {
+					hudDirty = true;
+					return;
+				}
+				hudT = now;
+				hudDirty = false;
+				playdeck.hud({
+					chips: [
+						`🎹 ${cleared}/${quota}`,
+						`⚡ ${rate().toFixed(1)}/s`,
+						`★ ${score}`,
+					],
+					progress: cleared / quota,
+				});
+			}
+
+			function showCombo() {
+				comboEl.innerHTML = combo >= 2 ? `${combo}<small>COMBO</small>` : "";
+				comboEl.style.opacity = combo >= 2 ? "1" : "0";
+				comboEl.classList.remove("bump");
+				void comboEl.offsetWidth; // restart the bump animation
+				comboEl.classList.add("bump");
+			}
+
+			playdeck.onStart(({ level }) => {
+				readTheme();
+				const L = Math.min(Math.max(level, 1), 8);
+				rate0 = 2.0 + (L - 1) * 0.15; // rows per second at the start
+				ramp = 0.07 + (L - 1) * 0.01; // rows per second gained each second
+				holdChance = L >= 3 ? Math.min(0.12 + (L - 3) * 0.03, 0.25) : 0;
+				// hold tiles eat 2–3 rows each, so trim the quota to keep runs ~20s
+				quota = Math.round(
+					Math.min(46 + (L - 1) * 6, 88) / (1 + holdChance * 1.5),
+				);
+				clearTimeout(endTimer);
+				resize();
+				tiles = [];
+				holds.clear();
+				s = t = idle = 0;
+				started = false;
+				nextStart = 0;
+				lastLane = -1;
+				spawned = cleared = combo = maxCombo = score = noteIdx = 0;
+				failTile = badMark = null;
+				laneFlash.fill(0);
+				state = "run";
+				spawn();
+				hud(true);
+				showCombo();
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt);
+					draw();
+					if (state === "run" || state === "dying")
+						raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				cancelAnimationFrame(raf);
+				clearTimeout(endTimer);
+				holds.clear();
+				tiles = [];
+				ctx.clearRect(0, 0, W, H);
+				comboEl.style.opacity = "0";
+			});
+
+			// Keep the column of upcoming tiles filled a little past the top edge.
+			function spawn() {
+				const ahead = s + hitY / tileH + 2;
+				while (nextStart < ahead && spawned < quota) {
+					// never the same lane twice in a row: the eye has to dance
+					let lane = (Math.random() * 4) | 0;
+					if (lane === lastLane)
+						lane = (lane + 1 + ((Math.random() * 3) | 0)) % 4;
+					lastLane = lane;
+					// the first tiles of a run are always plain taps
+					const hold = spawned > 3 && Math.random() < holdChance;
+					const len = hold ? 2 + ((Math.random() * 2) | 0) : 1;
+					tiles.push({
+						lane,
+						start: nextStart,
+						len,
+						hold,
+						state: "live", // live | held | hit
+						pressS: 0,
+						fade: 1,
+					});
+					nextStart += len;
+					spawned += 1;
+				}
+			}
+
+			function playNote() {
+				const f = NOTES[MELODY[noteIdx % MELODY.length]];
+				noteIdx += 1;
+				playdeck.sfx("merge", noteValue(f));
+			}
+
+			function laneX(lane) {
+				return bx + lane * laneW + laneW / 2;
+			}
+
+			function press(lane, id) {
+				if (!playdeck.running || state !== "run") return;
+				laneFlash[lane] = 1;
+				// the lowest unplayed tile in this lane that is actually on screen
+				let pick = null;
+				for (const tile of tiles) {
+					if (tile.state !== "live" || tile.lane !== lane) continue;
+					if (bottomOf(tile) < 70) continue;
+					if (!pick || bottomOf(tile) > bottomOf(pick)) pick = tile;
+				}
+				if (!pick) {
+					badMark = { lane };
+					fail(`Wrong lane at ${cleared}/${quota}`);
+					return;
+				}
+				started = true;
+				if (pick.hold) {
+					pick.state = "held";
+					pick.pressS = s;
+					holds.set(id, pick);
+					playNote();
+					playdeck.pop(laneX(lane), bottomOf(pick) - 30, "HOLD", GOLD);
+				} else {
+					playNote();
+					clearTile(pick, false);
+				}
+			}
+
+			function release(id) {
+				const tile = holds.get(id);
+				holds.delete(id);
+				if (!tile || tile.state !== "held" || state !== "run") return;
+				const held = (s - tile.pressS) / tile.len;
+				if (held >= 0.8) {
+					clearTile(tile, true); // close enough, count it
+					return;
+				}
+				// let go too early: the tile is gone but the combo breaks
+				tile.state = "hit";
+				cleared += 1;
+				score += 5;
+				combo = 0;
+				playdeck.sfx("step");
+				playdeck.pop(
+					laneX(tile.lane),
+					Math.min(bottomOf(tile), hitY) - 40,
+					"SHORT",
+					BAD,
+				);
+				showCombo();
+				hud();
+				if (cleared >= quota) win();
+			}
+
+			function clearTile(tile, wasHold) {
+				tile.state = "hit";
+				tile.fade = 1;
+				cleared += 1;
+				combo += 1;
+				maxCombo = Math.max(maxCombo, combo);
+				const gain = (wasHold ? 25 : 10) + Math.min(combo, 30);
+				score += gain;
+				const x = laneX(tile.lane);
+				const y = Math.min(Math.max(bottomOf(tile) - tileH / 2, 110), hitY);
+				const col = LANE_COLORS[tile.lane];
+				if (wasHold) playdeck.sfx("good");
+				playdeck.burst(x, y, wasHold ? GOLD : col, wasHold ? 18 : 9);
+				playdeck.pop(x, y - 24, `+${gain}`, wasHold ? GOLD : col);
+				if (combo % 10 === 0) {
+					playdeck.flash(col);
+					playdeck.pop(W / 2, H * 0.32, `${combo} STREAK!`, GOLD);
+				}
+				showCombo();
+				hud();
+				if (cleared >= quota) win();
+			}
+
+			function fail(note) {
+				state = "dying";
+				combo = 0;
+				playdeck.sfx("bad");
+				playdeck.shake(2);
+				playdeck.flash(BAD);
+				showCombo();
+				hud(true);
+				endTimer = setTimeout(() => {
+					state = "idle";
+					cancelAnimationFrame(raf);
+					draw();
+					playdeck.end(false, score, note);
+				}, 750);
+			}
+
+			function win() {
+				state = "idle";
+				const bonus = maxCombo >= quota ? 100 : 0;
+				score += bonus;
+				hud(true);
+				playdeck.flash(GOLD);
+				playdeck.end(
+					true,
+					score,
+					bonus ? "Flawless! Full combo" : `Best combo ${maxCombo}`,
+				);
+			}
+
+			// ---- input ----
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || state !== "run") return;
+				const lane = Math.floor((e.clientX - bx) / laneW);
+				if (lane < 0 || lane > 3) return; // outside the board: harmless
+				try {
+					canvas.setPointerCapture(e.pointerId);
+				} catch {
+					// pointer already gone; the press still counts
+				}
+				press(lane, e.pointerId);
+			});
+			const lift = (e) => release(e.pointerId);
+			canvas.addEventListener("pointerup", lift);
+			canvas.addEventListener("pointercancel", lift);
+			addEventListener("keydown", (e) => {
+				if (!(e.code in KEYS)) return;
+				e.preventDefault();
+				if (!e.repeat) press(KEYS[e.code], e.code);
+			});
+			addEventListener("keyup", (e) => {
+				if (e.code in KEYS) release(e.code);
+			});
+
+			function step(dt) {
+				for (let i = 0; i < 4; i++)
+					laneFlash[i] = Math.max(laneFlash[i] - dt * 5, 0);
+				for (const tile of tiles) if (tile.state === "hit") tile.fade -= dt * 5;
+
+				if (state === "dying") {
+					// roll the board back so the missed tile sits on the line
+					if (failTile) s += (failS - s) * Math.min(dt * 10, 1);
+					return;
+				}
+
+				if (!started) {
+					idle += dt;
+					if (idle > 2.2) started = true; // don't wait forever on the first tap
+				}
+				if (started) {
+					t += dt;
+					s += rate() * dt;
+				}
+				spawn();
+
+				sparkT -= dt;
+				for (const [key, tile] of holds) {
+					if (tile.state !== "held") continue;
+					const filled = s - tile.pressS;
+					if (filled >= tile.len - 0.02) {
+						holds.delete(key);
+						clearTile(tile, true);
+						if (state !== "run") return;
+						continue;
+					}
+					// sparks spit from the top of the fill while holding
+					if (sparkT <= 0) {
+						const y = bottomOf(tile) - filled * tileH;
+						playdeck.burst(laneX(tile.lane), Math.max(y, 100), GOLD, 3);
+					}
+				}
+				if (sparkT <= 0) sparkT = 0.1;
+
+				for (const tile of tiles) {
+					if (tile.state === "live" && topOf(tile) > hitY) {
+						failTile = tile;
+						failS = tile.start + 0.25; // bottom edge back on the line
+						fail(`Missed at ${cleared}/${quota}`);
+						return;
+					}
+				}
+				tiles = tiles.filter(
+					(tile) =>
+						!(tile.state === "hit" && tile.fade <= 0) && topOf(tile) < H + 40,
+				);
+				if (hudDirty) hud();
+			}
+
+			function roundRect(x, y, w, h, r) {
+				ctx.beginPath();
+				ctx.roundRect(x, y, w, h, r);
+			}
+
+			function draw() {
+				ctx.clearRect(0, 0, W, H);
+				if (!tileH) return;
+				// lanes
+				ctx.globalAlpha = 0.06;
+				ctx.fillStyle = textCol;
+				roundRect(bx, 0, bw, hitY + 46, 18);
+				ctx.fill();
+				ctx.globalAlpha = 0.5;
+				ctx.strokeStyle = lineCol;
+				ctx.lineWidth = 1;
+				for (let i = 1; i < 4; i++) {
+					ctx.beginPath();
+					ctx.moveTo(bx + i * laneW, 0);
+					ctx.lineTo(bx + i * laneW, hitY + 46);
+					ctx.stroke();
+				}
+				// press flashes rise up from the line
+				for (let i = 0; i < 4; i++) {
+					if (laneFlash[i] <= 0) continue;
+					const g = ctx.createLinearGradient(0, hitY, 0, hitY - tileH * 2.5);
+					g.addColorStop(0, LANE_COLORS[i]);
+					g.addColorStop(1, "transparent");
+					ctx.globalAlpha = laneFlash[i] * 0.35;
+					ctx.fillStyle = g;
+					ctx.fillRect(bx + i * laneW, hitY - tileH * 2.5, laneW, tileH * 2.5);
+				}
+				// hit zone: soft glow above a bright line
+				const zg = ctx.createLinearGradient(0, hitY - tileH * 0.7, 0, hitY);
+				zg.addColorStop(0, "transparent");
+				zg.addColorStop(1, ACCENT);
+				ctx.globalAlpha = 0.18;
+				ctx.fillStyle = zg;
+				ctx.fillRect(bx, hitY - tileH * 0.7, bw, tileH * 0.7);
+				ctx.globalAlpha = 1;
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 16;
+				ctx.fillStyle = ACCENT;
+				ctx.fillRect(bx, hitY - 2, bw, 4);
+				ctx.shadowBlur = 0;
+				// key hints under the line
+				ctx.globalAlpha = 0.45;
+				ctx.fillStyle = textCol;
+				ctx.font = "700 13px system-ui, sans-serif";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				for (let i = 0; i < 4; i++)
+					ctx.fillText(KEY_LABELS[i], laneX(i), hitY + 22);
+
+				// tiles
+				const blink =
+					state === "dying" && Math.floor(performance.now() / 110) % 2 === 0;
+				for (const tile of tiles) {
+					const bot = bottomOf(tile);
+					const top = bot - tile.len * tileH;
+					if (bot < -10 || top > H) continue;
+					const col =
+						tile === failTile
+							? blink
+								? BAD
+								: "#ffffff"
+							: LANE_COLORS[tile.lane];
+					const x = bx + tile.lane * laneW + 4;
+					const w = laneW - 8;
+					if (tile.state === "hit") {
+						// played tiles pop outward and fade
+						const k = Math.max(tile.fade, 0);
+						const grow = (1 - k) * 10;
+						ctx.globalAlpha = k * 0.7;
+						ctx.fillStyle = col;
+						roundRect(
+							x - grow,
+							top + 3 - grow,
+							w + grow * 2,
+							tile.len * tileH - 6 + grow * 2,
+							12,
+						);
+						ctx.fill();
+						continue;
+					}
+					ctx.globalAlpha = 1;
+					ctx.shadowColor = col;
+					ctx.shadowBlur = 20;
+					const g = ctx.createLinearGradient(0, top, 0, bot);
+					if (tile.hold) {
+						g.addColorStop(0, "rgba(255,255,255,0.08)");
+						g.addColorStop(1, col);
+					} else {
+						g.addColorStop(0, col);
+						g.addColorStop(1, "#ffffff");
+					}
+					ctx.fillStyle = g;
+					roundRect(x, top + 3, w, tile.len * tileH - 6, 12);
+					ctx.fill();
+					ctx.shadowBlur = 0;
+					if (tile.hold) {
+						// rail down the middle, plus the gold fill while held
+						ctx.globalAlpha = 0.8;
+						ctx.fillStyle = "#ffffff";
+						ctx.fillRect(x + w / 2 - 2, top + 12, 4, tile.len * tileH - 24);
+						if (tile.state === "held") {
+							const filled = Math.min(
+								(s - tile.pressS) * tileH,
+								tile.len * tileH - 6,
+							);
+							ctx.globalAlpha = 1;
+							ctx.shadowColor = GOLD;
+							ctx.shadowBlur = 24;
+							ctx.fillStyle = GOLD;
+							roundRect(x, bot - 3 - filled, w, filled, 12);
+							ctx.fill();
+							ctx.shadowBlur = 0;
+						}
+					}
+					if (!started && tile.start === 0) {
+						ctx.globalAlpha = 1;
+						ctx.fillStyle = "#1a1030";
+						ctx.font = "900 18px system-ui, sans-serif";
+						ctx.fillText("TAP", x + w / 2, bot - tileH / 2);
+					}
+				}
+				// a wrong-lane tap leaves a red ghost where the player hit
+				if (badMark && (blink || state === "idle")) {
+					ctx.globalAlpha = 0.85;
+					ctx.fillStyle = BAD;
+					roundRect(
+						bx + badMark.lane * laneW + 4,
+						hitY - tileH,
+						laneW - 8,
+						tileH - 6,
+						12,
+					);
+					ctx.fill();
+				}
+				ctx.globalAlpha = 1;
+				ctx.shadowBlur = 0;
+			}
+		</script>
+	</body>
+</html>

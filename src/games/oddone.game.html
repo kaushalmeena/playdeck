@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Odd One Out" />
+		<meta name="playdeck:emoji" content="🔍" />
+		<meta
+			name="playdeck:desc"
+			content="One tile is a little different. Find it."
+		/>
+		<meta name="playdeck:order" content="24" />
+		<meta name="playdeck:accent" content="#00b8d9" />
+		<meta
+			name="playdeck:instructions"
+			content="Every round, one tile is a slightly different shade. Tap it before the timer drains. The grid grows and the difference shrinks as you go."
+		/>
+		<style>
+			:root {
+				--accent: #00b8d9;
+			}
+			/* ---- shared arcade layout: combo, per-answer timer, tiles ---- */
+			#game {
+				position: absolute;
+				inset: 92px 16px 92px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 16px;
+			}
+			#combo {
+				display: flex;
+				align-items: baseline;
+				gap: 10px;
+				height: 56px;
+				font-weight: 900;
+				color: var(--t-muted);
+				transition: color 0.2s;
+			}
+			#combo b {
+				display: inline-block;
+				font-size: 50px;
+				line-height: 1;
+			}
+			#combo span {
+				font-size: 13px;
+				letter-spacing: 0.2em;
+			}
+			#combo.hot {
+				color: var(--accent);
+				text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+			}
+			#combo.bump b {
+				animation: bump 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+			}
+			@keyframes bump {
+				from {
+					transform: scale(1.8);
+				}
+			}
+			#tbar {
+				width: min(84vw, 400px);
+				height: 8px;
+				border-radius: 99px;
+				background: color-mix(in srgb, var(--t-line) 80%, transparent);
+				overflow: hidden;
+				transition: opacity 0.2s;
+			}
+			#tbar i {
+				display: block;
+				height: 100%;
+				background: var(--accent);
+				border-radius: inherit;
+				transform-origin: left;
+			}
+			#tbar.low i {
+				background: var(--t-danger);
+			}
+			#tbar.off {
+				opacity: 0.3;
+			}
+			.tile {
+				animation: pin 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+				animation-delay: calc(var(--i, 0) * 30ms);
+			}
+			@keyframes pin {
+				from {
+					transform: scale(0.2);
+					opacity: 0;
+				}
+			}
+			.tile.hit {
+				animation: hit 0.25s ease-out;
+			}
+			@keyframes hit {
+				40% {
+					transform: scale(1.14);
+				}
+			}
+			.tile.wrong {
+				animation: wrong 0.4s;
+			}
+			/* only a tapped button turns red; text and grids just shake */
+			button.wrong {
+				border-color: var(--t-danger) !important;
+				background: color-mix(
+					in srgb,
+					var(--t-danger) 40%,
+					transparent
+				) !important;
+			}
+			@keyframes wrong {
+				20% {
+					transform: translateX(-10px);
+				}
+				40% {
+					transform: translateX(9px);
+				}
+				60% {
+					transform: translateX(-6px);
+				}
+				80% {
+					transform: translateX(4px);
+				}
+			}
+
+			/* ---- this game ---- */
+			#grid {
+				display: grid;
+				gap: 8px;
+				width: min(84vw, 400px, calc(100vh - 300px));
+				margin-top: 8px;
+			}
+			.cell {
+				aspect-ratio: 1;
+				padding: 0;
+				border: 2px solid color-mix(in srgb, var(--t-line) 70%, transparent);
+				border-radius: 14px;
+				cursor: pointer;
+			}
+			.cell.right {
+				border-color: var(--t-text);
+				box-shadow: 0 0 0 3px var(--t-good);
+				transform: scale(1.08);
+			}
+		</style>
+	</head>
+	<body>
+		<div id="game">
+			<div id="combo" aria-live="polite"></div>
+			<div id="tbar" class="off"><i></i></div>
+			<div id="grid"></div>
+		</div>
+		<script>
+			// ---------- shared arcade kit (combo, per-answer timer, juice) ----------
+			const $ = (id) => document.getElementById(id);
+			const ACCENT = "#00b8d9",
+				GOLD = "#ffd24d";
+			const comboEl = $("combo"),
+				barEl = $("tbar"),
+				barFill = barEl.firstElementChild;
+			let state = "idle"; // idle | play (answer clock running) | wait | over
+			let timers = [],
+				raf = 0;
+			let score = 0,
+				streak = 0,
+				best = 0;
+			let limit = 1,
+				askedAt = 0; // per-answer clock: seconds allowed, start time (ms)
+
+			const after = (ms, fn) => timers.push(setTimeout(fn, ms));
+			function clearAll() {
+				timers.forEach(clearTimeout);
+				timers = [];
+				cancelAnimationFrame(raf);
+			}
+			function center(el) {
+				const r = el.getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			}
+			function retrigger(el, cls) {
+				el.classList.remove(cls);
+				void el.offsetWidth; // restart the CSS animation
+				el.classList.add(cls);
+			}
+			// ×1 → ×5, one step every 3 answers in a row
+			const mult = () => Math.min(1 + Math.floor(streak / 3), 5);
+			function drawCombo(bump) {
+				comboEl.innerHTML = `<b>×${mult()}</b><span>STREAK ${streak}</span>`;
+				comboEl.className = (mult() > 1 ? "hot " : "") + (bump ? "bump" : "");
+			}
+			function arm(seconds) {
+				limit = seconds;
+				askedAt = performance.now();
+				barEl.classList.remove("off", "low");
+				barFill.style.transform = "scaleX(1)";
+				state = "play";
+			}
+			function loop(now) {
+				if (state === "idle") return;
+				if (state === "play") {
+					const left = 1 - (now - askedAt) / 1000 / limit;
+					barFill.style.transform = `scaleX(${Math.max(left, 0)})`;
+					barEl.classList.toggle("low", left < 0.3);
+					if (left <= 0) timeout();
+				}
+				raf = requestAnimationFrame(loop);
+			}
+			// Correct answer: score with the streak multiplier, +N pop, burst, FAST!
+			function reward(el, base, color = ACCENT, sound = true) {
+				const took = (performance.now() - askedAt) / 1000;
+				const fast = took < limit * 0.35;
+				const before = mult();
+				streak += 1;
+				best = Math.max(best, streak);
+				const pts = base * mult() + (fast ? 5 : 0);
+				score += pts;
+				const { x, y } = center(el);
+				if (sound) playdeck.sfx("merge", 2 ** Math.min(streak + 1, 11)); // pitch climbs with the streak
+				playdeck.pop(x, y - 10, `+${pts}`, color);
+				playdeck.burst(x, y, color, 10 + mult() * 3);
+				if (fast) after(100, () => playdeck.pop(x, y - 50, "FAST!", GOLD));
+				if (mult() > before) {
+					const c = center(comboEl);
+					playdeck.pop(c.x, c.y + 40, `×${mult()} COMBO!`, ACCENT);
+				}
+				retrigger(el, "hit");
+				drawCombo(true);
+				state = "wait";
+				barEl.classList.add("off");
+				return fast;
+			}
+			// Fatal mistake: shake, let it register for a beat, then end.
+			function fail(el, note) {
+				state = "over";
+				barEl.classList.add("off");
+				playdeck.sfx("bad");
+				if (el) retrigger(el, "wrong");
+				after(750, () => {
+					state = "idle";
+					playdeck.end(false, score, note);
+				});
+			}
+			function win(bonus, note) {
+				state = "over";
+				score += bonus;
+				barEl.classList.add("off");
+				playdeck.flash(ACCENT);
+				playdeck.sfx("good");
+				after(400, () => {
+					state = "idle";
+					playdeck.end(true, score, note);
+				});
+			}
+
+			// ---------- Odd One Out ----------
+			const gridEl = $("grid");
+			let L = 1,
+				rounds = 0,
+				done = 0,
+				odd = 0;
+
+			const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+			function hud() {
+				playdeck.hud({ chips: [`${done}/${rounds}`, `${score} PTS`] });
+			}
+
+			// The board gets harder within a run too: more tiles, subtler shade.
+			function ask() {
+				const n = Math.min(3 + Math.floor((L + done) / 3), 6);
+				const delta = Math.max(20 - L * 1.3 - done * 0.8, 5);
+				const hue = randInt(0, 359);
+				const base = 52;
+				const oddL = base + (Math.random() < 0.5 ? delta : -delta);
+				odd = randInt(0, n * n - 1);
+				gridEl.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+				gridEl.style.gap = n > 4 ? "6px" : "8px";
+				gridEl.innerHTML = "";
+				for (let i = 0; i < n * n; i++) {
+					const b = document.createElement("button");
+					b.type = "button";
+					b.className = "tile cell";
+					b.dataset.i = i;
+					// diagonal wave so even a 6×6 grid lands quickly
+					b.style.setProperty("--i", ((i % n) + Math.floor(i / n)) * 0.6);
+					b.style.background = `hsl(${hue}, 70%, ${i === odd ? oddL : base}%)`;
+					b.setAttribute("aria-label", `Tile ${i + 1}`);
+					gridEl.append(b);
+				}
+				arm(Math.max(4 - L * 0.15, 2.2));
+				hud();
+			}
+
+			function tap(b) {
+				if (!playdeck.running || state !== "play" || !b) return;
+				if (+b.dataset.i !== odd) {
+					gridEl.children[odd].classList.add("right");
+					return fail(b, "Wrong tile");
+				}
+				reward(b, 10, ACCENT);
+				done += 1;
+				hud();
+				if (done >= rounds)
+					return win(20 + best * 2, `Eagle eyes! ${rounds}/${rounds}`);
+				after(240, ask);
+			}
+
+			function timeout() {
+				gridEl.children[odd].classList.add("right");
+				fail(gridEl, "Too slow");
+			}
+
+			gridEl.addEventListener("pointerdown", (e) =>
+				tap(e.target.closest("button")),
+			);
+
+			playdeck.onStart(({ level }) => {
+				clearAll();
+				L = Math.min(Math.max(level, 1), 12);
+				rounds = 7 + Math.min(L, 6);
+				score = streak = best = done = 0;
+				drawCombo(false);
+				ask();
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				clearAll();
+				state = "idle";
+				barEl.classList.add("off");
+				gridEl.innerHTML = "";
+			});
+		</script>
+	</body>
+</html>

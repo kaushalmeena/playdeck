@@ -62,10 +62,12 @@ body {
 	background: var(--t-bg);
 	color: var(--t-text);
 	overflow: hidden;
-	font-family: ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto,
-		sans-serif;
+	font-family:
+		ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 	-webkit-tap-highlight-color: transparent;
-	transition: background-color 0.25s ease, color 0.25s ease;
+	transition:
+		background-color 0.25s ease,
+		color 0.25s ease;
 }
 
 /* every button in the project shares one motion language */
@@ -216,4 +218,119 @@ a:active {
 }
 .toast-in {
 	animation: toast-in 0.25s ease-out;
+}
+
+/* ---- juice: see components/game/JuiceLayer ---- */
+@keyframes juice-particle {
+	from {
+		transform: translate(-50%, -50%) scale(1);
+		opacity: 1;
+	}
+	to {
+		transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+			scale(0.2);
+		opacity: 0;
+	}
+}
+.juice-particle {
+	animation: juice-particle 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes juice-pop {
+	0% {
+		transform: translate(-50%, -50%) scale(0.6);
+		opacity: 0;
+	}
+	15% {
+		transform: translate(-50%, -70%) scale(1.25);
+		opacity: 1;
+	}
+	100% {
+		transform: translate(-50%, -260%) scale(1);
+		opacity: 0;
+	}
+}
+.juice-pop {
+	animation: juice-pop 0.75s ease-out forwards;
+	text-shadow: 0 2px 12px rgb(0 0 0 / 0.45);
+}
+
+@keyframes juice-flash {
+	from {
+		opacity: 0.22;
+	}
+	to {
+		opacity: 0;
+	}
+}
+.juice-flash {
+	animation: juice-flash 0.24s ease-out forwards;
+}
+
+@keyframes juice-callout {
+	0% {
+		transform: translate(-50%, -50%) scale(0.3) rotate(-8deg);
+		opacity: 0;
+	}
+	18% {
+		transform: translate(-50%, -50%) scale(1.2) rotate(2deg);
+		opacity: 1;
+	}
+	30% {
+		transform: translate(-50%, -50%) scale(1) rotate(0);
+	}
+	80% {
+		opacity: 1;
+	}
+	100% {
+		transform: translate(-50%, -90%) scale(1);
+		opacity: 0;
+	}
+}
+.juice-callout {
+	animation: juice-callout 1s ease-out forwards;
+}
+
+@keyframes result-in {
+	from {
+		transform: scale(0.85) translateY(12px);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1) translateY(0);
+		opacity: 1;
+	}
+}
+.animate-result-in {
+	animation: result-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.juice-particle,
+	.juice-callout,
+	.animate-result-in {
+		animation-duration: 0.01s;
+	}
+}
+
+/* the start button breathes so the next action is never in doubt */
+@keyframes play-glow {
+	0%,
+	100% {
+		box-shadow: 0 8px 30px
+			color-mix(in srgb, var(--glow, #7c5cff) 35%, transparent);
+	}
+	50% {
+		box-shadow: 0 8px 44px
+			color-mix(in srgb, var(--glow, #7c5cff) 70%, transparent);
+	}
+}
+.animate-play-glow {
+	animation: play-glow 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.animate-play-glow,
+	.animate-bounce-slow {
+		animation: none;
+	}
 }

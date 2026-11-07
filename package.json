@@ -1,49 +1,55 @@
 {
-  "name": "playdeck",
-  "private": true,
-  "type": "module",
-  "imports": {
-    "#/*": "./src/*"
-  },
-  "scripts": {
-    "dev": "vite dev",
-    "generate-routes": "tsr generate",
-    "build": "vite build",
-    "preview": "vite preview",
-    "format": "biome format",
-    "lint": "biome lint",
-    "check": "biome check",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-start": "latest",
-    "@tanstack/react-virtual": "^3.14.9",
-    "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "sonner": "^2.0.7",
-    "tailwindcss": "^4.1.18"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.4.5",
-    "@tanstack/router-cli": "^1.132.0",
-    "@types/canvas-confetti": "^1.9.0",
-    "@types/node": "^22.10.2",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@vitejs/plugin-react": "^6.0.1",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.10"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss"
-    ]
-  }
+	"name": "playdeck",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#/*": "./src/*"
+	},
+	"scripts": {
+		"dev": "vite dev",
+		"generate-routes": "tsr generate",
+		"build": "vite build",
+		"preview": "vite preview",
+		"format": "oxfmt",
+		"lint": "oxlint",
+		"check": "oxlint && oxfmt --check",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"format:check": "oxfmt --check",
+		"lint:fix": "oxlint --fix",
+		"typecheck": "tsc --noEmit",
+		"verify:games": "node scripts/verify-games.ts"
+	},
+	"dependencies": {
+		"@tailwindcss/vite": "^4.1.18",
+		"@tanstack/react-router": "latest",
+		"@tanstack/react-start": "latest",
+		"@tanstack/react-virtual": "^3.14.9",
+		"canvas-confetti": "^1.9.4",
+		"clsx": "^2.1.1",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"sonner": "^2.0.7",
+		"tailwindcss": "^4.1.18"
+	},
+	"devDependencies": {
+		"@tanstack/router-cli": "^1.132.0",
+		"@types/canvas-confetti": "^1.9.0",
+		"@types/node": "^22.10.2",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@vitejs/plugin-react": "^6.0.1",
+		"oxfmt": "^0.77.0",
+		"oxlint": "^1.92.0",
+		"oxlint-tailwindcss": "^1.17.1",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.0",
+		"vitest": "^4.1.10"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"lightningcss"
+		]
+	}
 }

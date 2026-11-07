@@ -1,0 +1,29 @@
+name: Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      # not `npm ci` — see deploy.yml: the lock file is generated on macOS
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run verify:games
+      - run: npm run build

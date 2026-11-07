@@ -1,0 +1,709 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="playdeck:title" content="Sky Hop" />
+		<meta name="playdeck:emoji" content="🦘" />
+		<meta name="playdeck:desc" content="Bounce up. Don't look down." />
+		<meta name="playdeck:order" content="21" />
+		<meta name="playdeck:accent" content="#3dffa0" />
+		<meta
+			name="playdeck:instructions"
+			content="Your blob bounces on its own. Steer with arrows, by dragging, or by holding the left/right side. Springs launch you, cracked ledges break. Reach the goal height — don't fall!"
+		/>
+		<style>
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="c"></canvas>
+		<script>
+			const canvas = document.getElementById("c");
+			const ctx = canvas.getContext("2d");
+			const ACCENT = "#3dffa0";
+			const COL = {
+				normal: "#3dffa0",
+				moving: "#00e5ff",
+				crumble: "#ff9f43",
+				spring: "#ff5cd0",
+				coin: "#ffd24d",
+			};
+			// physics (px, px/s, px/s²)
+			const G = 2300;
+			const JUMP = 920; // apex = JUMP² / 2G ≈ 184px
+			const SPRING = 1550; // apex ≈ 522px
+			const APEX = (JUMP * JUMP) / (2 * G);
+			const HSPEED = 470;
+			const HACCEL = 3200;
+			const R = 14; // blob radius
+			const PW_H = 12; // platform thickness
+			const PX_PER_M = 10;
+
+			let W = 0,
+				H = 0,
+				dpr = 1,
+				colL = 0,
+				colW = 0;
+			let raf = 0,
+				state = "idle",
+				level = 1,
+				endAt = 0,
+				endArgs = null;
+			let textColor = "#eaeaf2",
+				mutedColor = "#8a8aa0";
+			// world: y grows downward like the screen; camY is the world y of the screen top
+			let camY = 0,
+				baseY = 0,
+				goalM = 350,
+				bestM = 0,
+				nextMilestone = 100,
+				coins = 0,
+				hudT = 0;
+			let plats = [],
+				coinList = [],
+				dust = [],
+				pops = [];
+			let gapMin = 50,
+				gapMax = 80,
+				platW = 70,
+				topY = 0,
+				lastX = 0;
+			const keys = { left: false, right: false };
+			let ptr = null; // { id, startX, lastX, mode: "hold" | "drag", dir }
+			const blob = { x: 0, y: 0, vx: 0, vy: 0, sq: 0, face: 1 };
+
+			const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+			const rand = (a, b) => a + Math.random() * (b - a);
+
+			function resize() {
+				dpr = Math.min(devicePixelRatio || 1, 2);
+				W = innerWidth;
+				H = innerHeight;
+				canvas.width = W * dpr;
+				canvas.height = H * dpr;
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+				// play column: narrow on wide screens so wrap distances stay jumpable
+				colW = Math.min(W, 460);
+				colL = (W - colW) / 2;
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			const heightM = () => Math.max(0, (baseY - blob.y) / PX_PER_M);
+
+			function hud() {
+				const m = Math.floor(bestM);
+				playdeck.hud({
+					chips: [`🦘 ${m}m / ${goalM}m`, `🪙 ${coins}`],
+					progress: clamp(bestM / goalM, 0, 1),
+				});
+			}
+
+			function wrapX(x) {
+				while (x < colL) x += colW;
+				while (x > colL + colW) x -= colW;
+				return x;
+			}
+
+			// ---- level generation ------------------------------------------
+			function pickType() {
+				const L = Math.min(level, 10);
+				const r = Math.random();
+				const pMove = Math.min(0.06 + 0.05 * L, 0.42);
+				const pCrumble = Math.min(0.02 + 0.045 * L, 0.3);
+				const pSpring = 0.08;
+				if (r < pSpring) return "spring";
+				if (r < pSpring + pMove) return "moving";
+				if (r < pSpring + pMove + pCrumble) return "crumble";
+				return "normal";
+			}
+
+			function addPlat(x, y, type) {
+				const w = type === "spring" ? platW * 0.9 : platW;
+				const x0 = clamp(x, colL + w / 2, colL + colW - w / 2);
+				plats.push({
+					x: x0,
+					y,
+					w,
+					type,
+					vx:
+						type === "moving"
+							? (Math.random() < 0.5 ? -1 : 1) * Math.min(55 + 10 * level, 140)
+							: 0,
+					broken: false,
+					fall: 0,
+					alpha: 1,
+					boing: 0,
+				});
+			}
+
+			// Builds the guaranteed chain upward. Every chain step is at most
+			// gapMax tall (< APEX) and at most 200px sideways (wrap-aware), so
+			// the next ledge is always reachable from the previous one.
+			let prevType = "normal";
+			function generateUpTo(yLimit) {
+				while (topY > yLimit) {
+					const gap = rand(gapMin, gapMax);
+					topY -= gap;
+					const dx = rand(-200, 200);
+					lastX = wrapX(lastX + dx);
+					// never two non-normal ledges in a row on the chain
+					let type = pickType();
+					if (prevType !== "normal" && type !== "normal") type = "normal";
+					prevType = type;
+					addPlat(lastX, topY, type);
+					// coins float above some ledges
+					if (Math.random() < 0.3)
+						coinList.push({
+							x: lastX,
+							y: topY - rand(40, 90),
+							got: false,
+							t: Math.random() * 6,
+						});
+					// bonus ledges make low levels roomier
+					const extra = Math.max(0.45 - 0.06 * level, 0.05);
+					if (Math.random() < extra) {
+						const ex = wrapX(lastX + colW * rand(0.35, 0.65));
+						addPlat(ex, topY - rand(10, gap * 0.6), "normal");
+					}
+				}
+			}
+
+			// ---- run lifecycle --------------------------------------------
+			playdeck.onStart(({ level: lv }) => {
+				level = lv;
+				const css = getComputedStyle(document.documentElement);
+				textColor = css.getPropertyValue("--t-text").trim() || "#eaeaf2";
+				mutedColor = css.getPropertyValue("--t-muted").trim() || "#8a8aa0";
+				const L = Math.min(level, 10);
+				goalM = Math.min(350 + 25 * (L - 1), 550);
+				// sparser with level, but the max gap stays well under the jump apex
+				gapMax = Math.min(72 + 6 * L, APEX * 0.65);
+				gapMin = Math.min(44 + 4 * L, gapMax - 24);
+				platW = Math.max(74 - 2.5 * L, 54);
+
+				plats = [];
+				coinList = [];
+				dust = [];
+				pops = [];
+				coins = 0;
+				bestM = 0;
+				nextMilestone = 100;
+				endAt = 0;
+				endArgs = null;
+				ptr = null;
+				keys.left = keys.right = false;
+
+				baseY = H - 130;
+				camY = 0;
+				// launch pad spans the whole column
+				plats.push({
+					x: colL + colW / 2,
+					y: baseY,
+					w: colW,
+					type: "normal",
+					vx: 0,
+					broken: false,
+					fall: 0,
+					alpha: 1,
+					boing: 0,
+					pad: true,
+				});
+				topY = baseY;
+				prevType = "normal";
+				lastX = colL + colW / 2;
+				generateUpTo(camY - H);
+
+				Object.assign(blob, {
+					x: colL + colW / 2,
+					y: baseY - R,
+					vx: 0,
+					vy: -JUMP,
+					sq: 1,
+					face: 1,
+				});
+				state = "run";
+				hud();
+				cancelAnimationFrame(raf);
+				let last = performance.now();
+				const loop = (now) => {
+					const dt = Math.min((now - last) / 1000, 0.04);
+					last = now;
+					step(dt, now);
+					draw(now);
+					if (state !== "idle") raf = requestAnimationFrame(loop);
+				};
+				raf = requestAnimationFrame(loop);
+			});
+
+			playdeck.onStop(() => {
+				state = "idle";
+				cancelAnimationFrame(raf);
+				ptr = null;
+				ctx.clearRect(0, 0, W, H);
+			});
+
+			function finish(won, now) {
+				state = "ending";
+				const m = Math.floor(bestM);
+				const score = m + coins * 15 + (won ? 120 : 0);
+				endArgs = [
+					won,
+					score,
+					won
+						? coins
+							? `Summit! ${coins} coin${coins === 1 ? "" : "s"} grabbed`
+							: "Summit reached"
+						: `Fell at ${m}m`,
+				];
+				endAt = now + (won ? 700 : 450);
+			}
+
+			// ---- input ----------------------------------------------------
+			addEventListener("keydown", (e) => {
+				if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A")
+					keys.left = true;
+				else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D")
+					keys.right = true;
+				else return;
+				e.preventDefault();
+			});
+			addEventListener("keyup", (e) => {
+				if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A")
+					keys.left = false;
+				if (e.key === "ArrowRight" || e.key === "d" || e.key === "D")
+					keys.right = false;
+			});
+			addEventListener("blur", () => {
+				keys.left = keys.right = false;
+			});
+
+			canvas.addEventListener("pointerdown", (e) => {
+				if (!playdeck.running || state !== "run") return;
+				canvas.setPointerCapture(e.pointerId);
+				ptr = {
+					id: e.pointerId,
+					startX: e.clientX,
+					lastX: e.clientX,
+					mode: "hold",
+					dir: e.clientX < W / 2 ? -1 : 1,
+				};
+			});
+			canvas.addEventListener("pointermove", (e) => {
+				if (!ptr || e.pointerId !== ptr.id) return;
+				// a real drag switches from "hold a side" to direct steering
+				if (ptr.mode === "hold" && Math.abs(e.clientX - ptr.startX) > 14)
+					ptr.mode = "drag";
+				if (ptr.mode === "drag" && state === "run") {
+					const d = (e.clientX - ptr.lastX) * 1.15;
+					blob.x += d;
+					if (Math.abs(d) > 0.5) blob.face = Math.sign(d);
+				}
+				ptr.lastX = e.clientX;
+			});
+			const release = (e) => {
+				if (ptr && e.pointerId === ptr.id) ptr = null;
+			};
+			canvas.addEventListener("pointerup", release);
+			canvas.addEventListener("pointercancel", release);
+
+			// ---- simulation -----------------------------------------------
+			function toScreen(y) {
+				return y - camY;
+			}
+
+			function puff(x, y, color, n) {
+				for (let i = 0; i < n; i++) {
+					const a = Math.PI + Math.random() * Math.PI; // upward half
+					const v = rand(60, 200);
+					dust.push({
+						x,
+						y,
+						vx: Math.cos(a) * v,
+						vy: Math.sin(a) * v * 0.5,
+						life: rand(0.25, 0.45),
+						t: 0,
+						c: color,
+					});
+				}
+			}
+
+			function bigPop(x, y, text, color, size) {
+				pops.push({ x, y, text, color, size, t: 0 });
+			}
+
+			function land(p, now) {
+				blob.y = p.y - R;
+				blob.sq = 1;
+				const sx = blob.x,
+					sy = toScreen(p.y);
+				if (p.type === "spring") {
+					blob.vy = -SPRING;
+					p.boing = 1;
+					playdeck.sfx("pop");
+					playdeck.shake(1);
+					playdeck.burst(sx, sy, COL.spring, 16);
+					bigPop(sx, sy - 40, "BOING!", COL.spring, 34);
+					puff(sx, p.y, COL.spring, 10);
+				} else {
+					blob.vy = -JUMP;
+					puff(sx, p.y, p.type === "crumble" ? COL.crumble : textColor, 6);
+					if (p.type === "crumble") {
+						p.broken = true;
+						playdeck.sfx("hit");
+						playdeck.burst(sx, sy, COL.crumble, 8);
+					} else playdeck.sfx("step");
+				}
+			}
+
+			function step(dt, now) {
+				if (state === "ending") {
+					// let the boom / win flash breathe before the result screen
+					stepFx(dt);
+					if (now >= endAt) {
+						state = "idle";
+						playdeck.end(...endArgs);
+					}
+					return;
+				}
+				if (state !== "run") return;
+
+				// steering
+				let dir = 0;
+				if (keys.left) dir -= 1;
+				if (keys.right) dir += 1;
+				if (ptr && ptr.mode === "hold") dir = ptr.dir;
+				if (dir) {
+					blob.vx = clamp(blob.vx + dir * HACCEL * dt, -HSPEED, HSPEED);
+					blob.face = dir;
+				} else blob.vx *= Math.exp(-9 * dt);
+				if (ptr && ptr.mode === "drag") blob.vx = 0;
+				blob.x += blob.vx * dt;
+				// screen wrap inside the play column
+				if (blob.x < colL - R) blob.x += colW + 2 * R;
+				else if (blob.x > colL + colW + R) blob.x -= colW + 2 * R;
+
+				// vertical
+				const prevFeet = blob.y + R;
+				blob.vy += G * dt;
+				blob.y += blob.vy * dt;
+				const feet = blob.y + R;
+
+				// platforms move first, then landing check (falling only)
+				for (const p of plats) {
+					if (p.vx) {
+						p.x += p.vx * dt;
+						if (p.x < colL + p.w / 2) {
+							p.x = colL + p.w / 2;
+							p.vx = Math.abs(p.vx);
+						} else if (p.x > colL + colW - p.w / 2) {
+							p.x = colL + colW - p.w / 2;
+							p.vx = -Math.abs(p.vx);
+						}
+					}
+					if (p.broken) {
+						p.fall += 900 * dt;
+						p.y += p.fall * dt;
+						p.alpha = Math.max(0, p.alpha - dt * 2.5);
+					}
+					p.boing = Math.max(0, p.boing - dt * 3);
+				}
+				if (blob.vy > 0) {
+					for (const p of plats) {
+						if (p.broken) continue;
+						if (prevFeet <= p.y + 2 && feet >= p.y) {
+							const half = p.w / 2 + R * 0.6;
+							if (Math.abs(blob.x - p.x) <= half) {
+								land(p, now);
+								break;
+							}
+						}
+					}
+				}
+				blob.sq = Math.max(0, blob.sq - dt * 6);
+
+				// camera only ever rises
+				const want = blob.y - H * 0.45;
+				if (want < camY) camY += (want - camY) * Math.min(1, dt * 10);
+
+				// coins
+				for (const c of coinList) {
+					c.t += dt;
+					if (c.got) continue;
+					const dx = c.x - blob.x,
+						dy = c.y - blob.y;
+					if (dx * dx + dy * dy < 26 * 26) {
+						c.got = true;
+						coins += 1;
+						const sy = toScreen(c.y);
+						playdeck.sfx("collect");
+						playdeck.pop(c.x, sy - 16, "+15", COL.coin);
+						playdeck.burst(c.x, sy, COL.coin, 8);
+						hudT = 0;
+					}
+				}
+
+				// height + milestones
+				const m = heightM();
+				if (m > bestM) bestM = m;
+				if (bestM >= nextMilestone && nextMilestone < goalM) {
+					const sy = toScreen(blob.y);
+					playdeck.sfx("good");
+					bigPop(
+						W / 2,
+						Math.max(140, sy - 60),
+						`${nextMilestone}m!`,
+						ACCENT,
+						42,
+					);
+					playdeck.burst(blob.x, sy, ACCENT, 14);
+					nextMilestone += 100;
+					hudT = 0;
+				}
+
+				// generate ahead, prune below
+				generateUpTo(camY - H * 0.6);
+				plats = plats.filter((p) => p.y - camY < H + 200 && p.alpha > 0);
+				coinList = coinList.filter((c) => c.y - camY < H + 100);
+
+				stepFx(dt);
+
+				hudT -= dt;
+				if (hudT <= 0) {
+					hud();
+					hudT = 0.2;
+				}
+
+				// win
+				if (bestM >= goalM) {
+					hud();
+					const sy = toScreen(blob.y);
+					playdeck.sfx("good");
+					playdeck.flash(ACCENT);
+					playdeck.burst(blob.x, sy, ACCENT, 40);
+					bigPop(W / 2, H * 0.4, "SUMMIT!", ACCENT, 56);
+					finish(true, now);
+					return;
+				}
+				// fall
+				if (toScreen(blob.y) > H + R * 2) {
+					playdeck.sfx("boom");
+					playdeck.shake(3);
+					playdeck.burst(blob.x, H - 20, "#ff4d6d", 30);
+					finish(false, now);
+				}
+			}
+
+			function stepFx(dt) {
+				for (const d of dust) {
+					d.t += dt;
+					d.x += d.vx * dt;
+					d.y += d.vy * dt;
+					d.vy += 300 * dt;
+				}
+				dust = dust.filter((d) => d.t < d.life);
+				for (const p of pops) p.t += dt;
+				pops = pops.filter((p) => p.t < 0.9);
+			}
+
+			// ---- rendering ------------------------------------------------
+			function roundRect(x, y, w, h, r) {
+				ctx.beginPath();
+				ctx.moveTo(x + r, y);
+				ctx.arcTo(x + w, y, x + w, y + h, r);
+				ctx.arcTo(x + w, y + h, x, y + h, r);
+				ctx.arcTo(x, y + h, x, y, r);
+				ctx.arcTo(x, y, x + w, y, r);
+				ctx.closePath();
+			}
+
+			function drawPlat(p, now) {
+				const sy = toScreen(p.y);
+				if (sy < -30 || sy > H + 30) return;
+				const c = COL[p.type];
+				ctx.globalAlpha = p.alpha;
+				ctx.shadowColor = c;
+				ctx.shadowBlur = 12;
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = c;
+				ctx.fillStyle = c + "33";
+				if (p.type === "crumble") ctx.setLineDash([6, 5]);
+				roundRect(p.x - p.w / 2, sy, p.w, PW_H, 6);
+				ctx.fill();
+				ctx.stroke();
+				ctx.setLineDash([]);
+				if (p.type === "crumble") {
+					// crack marks
+					ctx.beginPath();
+					ctx.moveTo(p.x - 6, sy + 1);
+					ctx.lineTo(p.x - 1, sy + 6);
+					ctx.lineTo(p.x - 5, sy + PW_H - 1);
+					ctx.moveTo(p.x + 10, sy + 1);
+					ctx.lineTo(p.x + 6, sy + 7);
+					ctx.stroke();
+				}
+				if (p.type === "spring") {
+					// coil on top, stretches when it fires
+					const h = 12 + p.boing * 14;
+					ctx.beginPath();
+					const top = sy - h;
+					for (let i = 0; i <= 6; i++) {
+						const yy = sy - (h * i) / 6;
+						const xx = p.x + (i % 2 ? 7 : -7);
+						if (i === 0) ctx.moveTo(p.x - 7, sy);
+						else ctx.lineTo(xx, yy);
+					}
+					ctx.stroke();
+					ctx.fillStyle = c;
+					roundRect(p.x - 11, top - 4, 22, 5, 2);
+					ctx.fill();
+				}
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 1;
+			}
+
+			function drawBlob(x, y) {
+				const speed = clamp(Math.abs(blob.vy) / 1300, 0, 1) * (1 - blob.sq);
+				const sx = 1 + 0.45 * blob.sq - 0.18 * speed;
+				const sy = 1 - 0.4 * blob.sq + 0.28 * speed;
+				ctx.save();
+				// squash anchors at the feet
+				ctx.translate(x, y + R);
+				ctx.scale(sx, sy);
+				ctx.translate(0, -R);
+				ctx.shadowColor = ACCENT;
+				ctx.shadowBlur = 24;
+				const g = ctx.createRadialGradient(-4, -5, 2, 0, 0, R);
+				g.addColorStop(0, "#d8fff0");
+				g.addColorStop(1, ACCENT);
+				ctx.fillStyle = g;
+				ctx.beginPath();
+				ctx.arc(0, 0, R, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.shadowBlur = 0;
+				// eyes look where we're heading
+				const ex = blob.face * 3;
+				const ey = blob.vy < 0 ? -3 : 0;
+				ctx.fillStyle = "#0b1a14";
+				ctx.beginPath();
+				ctx.arc(ex - 4, ey - 2, 2.4, 0, Math.PI * 2);
+				ctx.arc(ex + 4, ey - 2, 2.4, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.restore();
+			}
+
+			function draw(now) {
+				ctx.clearRect(0, 0, W, H);
+
+				// faint column edges on wide screens
+				if (colW < W) {
+					ctx.strokeStyle = ACCENT + "22";
+					ctx.lineWidth = 1;
+					ctx.beginPath();
+					ctx.moveTo(colL, 0);
+					ctx.lineTo(colL, H);
+					ctx.moveTo(colL + colW, 0);
+					ctx.lineTo(colL + colW, H);
+					ctx.stroke();
+				}
+
+				// height markers every 50m
+				ctx.font = "600 11px system-ui, sans-serif";
+				ctx.textAlign = "left";
+				const topM = Math.floor((baseY - camY) / PX_PER_M / 50) * 50;
+				for (let m = topM; m >= 0 && m > topM - 200; m -= 50) {
+					const sy = toScreen(baseY - m * PX_PER_M);
+					if (sy < 0 || sy > H) continue;
+					ctx.globalAlpha = 0.35;
+					ctx.strokeStyle = mutedColor;
+					ctx.setLineDash([2, 8]);
+					ctx.beginPath();
+					ctx.moveTo(colL, sy);
+					ctx.lineTo(colL + colW, sy);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.fillStyle = mutedColor;
+					ctx.fillText(`${m}m`, colL + 4, sy - 4);
+					ctx.globalAlpha = 1;
+				}
+
+				// goal line
+				const gy = toScreen(baseY - goalM * PX_PER_M);
+				if (gy > -20 && gy < H + 20) {
+					ctx.shadowColor = ACCENT;
+					ctx.shadowBlur = 16;
+					ctx.strokeStyle = ACCENT;
+					ctx.lineWidth = 3;
+					ctx.setLineDash([12, 8]);
+					ctx.beginPath();
+					ctx.moveTo(colL, gy);
+					ctx.lineTo(colL + colW, gy);
+					ctx.stroke();
+					ctx.setLineDash([]);
+					ctx.fillStyle = ACCENT;
+					ctx.font = "800 14px system-ui, sans-serif";
+					ctx.textAlign = "center";
+					ctx.fillText("GOAL", colL + colW / 2, gy - 8);
+					ctx.shadowBlur = 0;
+				}
+
+				for (const p of plats) drawPlat(p, now);
+
+				// coins
+				for (const c of coinList) {
+					if (c.got) continue;
+					const sy = toScreen(c.y) + Math.sin(c.t * 4) * 3;
+					if (sy < -20 || sy > H + 20) continue;
+					const wob = Math.abs(Math.cos(c.t * 3));
+					ctx.shadowColor = COL.coin;
+					ctx.shadowBlur = 12;
+					ctx.fillStyle = COL.coin;
+					ctx.beginPath();
+					ctx.ellipse(c.x, sy, 8 * (0.35 + 0.65 * wob), 8, 0, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.shadowBlur = 0;
+				}
+
+				// dust
+				for (const d of dust) {
+					ctx.globalAlpha = 1 - d.t / d.life;
+					ctx.fillStyle = d.c;
+					ctx.beginPath();
+					ctx.arc(d.x, toScreen(d.y), 2.5, 0, Math.PI * 2);
+					ctx.fill();
+				}
+				ctx.globalAlpha = 1;
+
+				// blob (+ ghost at the wrap seam)
+				if (state === "run" || toScreen(blob.y) < H + R * 2) {
+					const by = toScreen(blob.y);
+					drawBlob(blob.x, by);
+					if (blob.x < colL + R) drawBlob(blob.x + colW + 2 * R, by);
+					else if (blob.x > colL + colW - R)
+						drawBlob(blob.x - colW - 2 * R, by);
+				}
+
+				// big canvas pops (milestones, BOING, SUMMIT)
+				ctx.textAlign = "center";
+				for (const p of pops) {
+					const k = p.t / 0.9;
+					const scale =
+						k < 0.15 ? 0.4 + (k / 0.15) * 0.8 : 1.2 - (k - 0.15) * 0.25;
+					ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+					ctx.font = `900 ${Math.round(p.size * scale)}px system-ui, sans-serif`;
+					ctx.shadowColor = p.color;
+					ctx.shadowBlur = 20;
+					ctx.fillStyle = p.color;
+					ctx.fillText(p.text, p.x, p.y - k * 30);
+				}
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 1;
+			}
+		</script>
+	</body>
+</html>
